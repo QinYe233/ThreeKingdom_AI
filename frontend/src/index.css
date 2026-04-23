@@ -1,0 +1,92 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=Noto+Serif+SC:wght@400;700&display=swap');
+
+:root {
+  --font-title: "Ma Shan Zheng", "华文行楷", cursive;
+  --font-subtitle: "ZCOOL XiaoWei", "华文楷体", serif;
+  --font-body: "Noto Serif SC", "宋体", serif;
+  --font-ui: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: var(--font-ui);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.font-title {
+  font-family: var(--font-title);
+}
+
+.font-subtitle {
+  font-family: var(--font-subtitle);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-ui {
+  font-family: var(--font-ui);
+}
+
+.leaflet-container {
+  background: #16213e !important;
+}
+
+.block-tooltip {
+  background: rgba(0, 0, 0, 0.85) !important;
+  color: #fff !important;
+  border: 1px solid #555 !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: #2d2d44 !important;
+  color: #e0e0e0 !important;
+  border-radius: 8px !important;
+}
+
+.leaflet-popup-tip {
+  background: #2d2d44 !important;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.9;
+  }
+}
+
+.btn-breathe:hover {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+.btn-breathe:not(:hover) {
+  animation: none;
+}

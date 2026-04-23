@@ -1,0 +1,54 @@
+{
+  "game_settings": {
+    "chronicler_interval": 5,
+    "initial_action_points": 6.0,
+    "initial_gold": 1000,
+    "initial_order": 70,
+    "initial_morale": 70,
+    "min_attack_troops_ratio": 0.1,
+    "min_attack_troops_absolute": 50
+  },
+  "country_settings": {
+    "魏": {
+      "initial_gold": 1800,
+      "initial_order": 78,
+      "initial_morale": 75,
+      "capital": "许昌"
+    },
+    "蜀": {
+      "initial_gold": 1200,
+      "initial_order": 80,
+      "initial_morale": 82,
+      "capital": "成都"
+    },
+    "吴": {
+      "initial_gold": 1350,
+      "initial_order": 78,
+      "initial_morale": 76,
+      "capital": "建业"
+    }
+  },
+  "action_costs": {
+    "move": 500,
+    "attack": 1000,
+    "harass": 500,
+    "recruit": 500,
+    "develop": 800,
+    "tax": 0,
+    "disband": 0,
+    "move_capital": 2000,
+    "declare_emperor": 3000
+  },
+  "block_settings": {
+    "default_base_manpower": 1000,
+    "default_garrison": 500,
+    "default_order": 60,
+    "default_morale": 60
+  },
+  "ai_settings": {
+    "aggression_factor": 1.2,
+    "expansion_priority": 0.8,
+    "defense_priority": 0.5,
+    "economy_priority": 0.6
+  }
+}
