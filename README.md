@@ -1,47 +1,51 @@
 # 千秋弈·群雄逐鹿
 
-一款基于 AI 的三国策略游戏，支持魏、蜀、吴三方势力，每个国家都由独立的 AI 驱动。
+> AI 驱动的三国策略游戏 · 谋定天下，一统中原
 
-## 快速开始
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.11+-green.svg)
+![React](https://img.shields.io/badge/React-18-blue.svg)
 
-### Windows 用户
-双击运行 `start.bat`
+## 🎮 游戏特色
 
-### Mac/Linux 用户
+- **AI 驱动**：魏蜀吴三方势力均由独立 AI 控制，展现不同战略风格
+- **自动对战**：配置 AI 后一键托管，观看群雄逐鹿
+- **史官系统**：完整记录每回合决策与战局演变
+- **策略丰富**：进攻、征兵、发展、外交、战斗等多种指令
+
+## 🚀 快速开始
+
 ```bash
+# Windows
+start.bat
+
+# Mac/Linux
 chmod +x start.sh
 ./start.sh
 ```
 
-**脚本会自动：**
-- 检测 Docker（如有则使用 Docker 启动）
-- 检测 Python 和 Node.js（如无则提示自动安装）
-- 安装所有依赖
-- 启动游戏服务
+> 脚本自动检测环境并安装依赖，支持 Docker 和本地两种运行方式
 
-## 配置 AI
+## ⚙️ AI 配置
 
-游戏启动后，在设置界面配置 AI：
+游戏内点击「设置」→ 为魏蜀吴配置 AI 模型（支持 GPT-4、DeepSeek 等）
 
-1. 点击"设置"按钮
-2. 为魏、蜀、吴配置 AI 模型：
-   - 模型名称（如：gpt-4o、deepseek-chat）
-   - API Key
-   - Base URL
-3. 测试连接并保存
+## 🛠️ 技术栈
 
-## 游戏玩法
+| 前端 | 后端 | AI |
+|------|------|-----|
+| React 18 + TypeScript | FastAPI + Python 3.11 | 多 LLM 支持 |
+| Three.js 3D 地图 | 异步流式响应 | GPT-4 / DeepSeek / 自定义 |
 
-- **目标**：统一天下，称帝建国
-- **行动**：进攻、征兵、发展、征税、调兵、外交等
-- **特色**：每个国家由不同 AI 驱动，具有独特战略风格
+## 📦 部署方式
 
-## 技术栈
+- **Docker**（推荐）：一键容器化部署
+- **本地运行**：Python 3.11+ + Node.js 18+
 
-- **前端**：React + TypeScript + Three.js
-- **后端**：FastAPI + Python
-- **AI**：支持多种大语言模型
-
-## 许可证
+## 📄 许可证
 
 MIT License
+
+---
+
+<p align="center">🏆 天下大势，分久必合，合久必分</p>
