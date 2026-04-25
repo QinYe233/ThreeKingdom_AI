@@ -60,8 +60,8 @@ const HistoryPanel = memo(function HistoryPanel({
               </div>
               {selectedRecord.thinking && (
                 <div className="mb-3">
-                  <div className="text-xs font-bold mb-1" style={{ color: "#a78bfa" }}>💭 深度思考</div>
-                  <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#c4b5fd" }}>
+                  <div className="text-xs font-bold mb-1" style={{ color: "#7c3aed" }}>💭 深度思考</div>
+                  <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#5b21b6" }}>
                     {selectedRecord.thinking}
                   </div>
                 </div>
@@ -76,9 +76,9 @@ const HistoryPanel = memo(function HistoryPanel({
               )}
               {selectedRecord.actions.length > 0 && (
                 <div>
-                  <div className="text-xs font-bold mb-1" style={{ color: "#34d399" }}>⚡ 执行行为</div>
+                  <div className="text-xs font-bold mb-1" style={{ color: "#059669" }}>⚡ 执行行为</div>
                   {selectedRecord.actions.map((a, i) => (
-                    <div key={i} className="text-xs leading-relaxed" style={{ color: "#6ee7b7" }}>
+                    <div key={i} className="text-xs leading-relaxed" style={{ color: "#047857" }}>
                       {a}
                     </div>
                   ))}

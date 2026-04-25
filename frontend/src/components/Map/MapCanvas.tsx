@@ -491,6 +491,9 @@ export default function MapCanvas({
     const lon = (x - offsetX) / scaleX + MIN_LON;
     const lat = MAX_LAT - (y - offsetY) / scaleY;
 
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
     for (const blockCache of blockPathCacheRef.current) {
       const { bounds } = blockCache;
       if (
@@ -500,10 +503,12 @@ export default function MapCanvas({
         const isInPath = ctx.isPointInPath(blockCache.path, lon, lat);
 
         if (isInPath) {
+          ctx.restore();
           return blockCache.name;
         }
       }
     }
+    ctx.restore();
     return null;
   }, [getViewTransform]);
 

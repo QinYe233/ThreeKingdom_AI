@@ -21,6 +21,8 @@ export const THEME_COLORS = {
   warning: "#d97706",                // Golden yellow - warning states
 };
 
+export type ThemeColors = typeof THEME_COLORS;
+
 export const FONTS = {
   title: "Ma Shan Zheng, SimSun, serif",    // 马善正楷 - Traditional calligraphy for titles
   subtitle: "STSong, serif",                  // 宋体 - Song dynasty style for subtitles
@@ -169,8 +171,8 @@ export const COUNTRY_COLOR_SETS: Record<string, { fill: string; stroke: string; 
   "凉州": { fill: "#cd853f", stroke: "#a0522d", star: "#eda55f" },
 };
 
-export const THEME_NAMES: never = {}; // Empty - no theme switching
-export const THEME_BACKGROUNDS: never = {}; // Empty - no theme switching
+export const THEME_NAMES: Record<string, string> = {};
+export const THEME_BACKGROUNDS: Record<string, string> = {};
 
 export const OWNER_NAMES: Record<string, string> = {
   neutral: "中立",

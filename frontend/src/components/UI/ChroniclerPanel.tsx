@@ -1,7 +1,7 @@
 import { memo, useRef, useEffect } from "react";
 import type { Narrative } from "../../types/game";
-import type { ThemeColors, FONTS } from "../../theme";
-import { COUNTRY_COLORS } from "../../theme";
+import type { ThemeColors } from "../../theme";
+import { FONTS, COUNTRY_COLORS } from "../../theme";
 
 interface ChroniclerPanelProps {
   show: boolean;

@@ -63,8 +63,8 @@ const ThinkingChain = memo(function ThinkingChain({
             </div>
             {currentThinking && (
               <div className="mb-3">
-                <div className="text-xs font-bold mb-1" style={{ color: "#a78bfa" }}>💭 深度思考</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#c4b5fd" }}>
+                <div className="text-xs font-bold mb-1" style={{ color: "#7c3aed" }}>💭 深度思考</div>
+                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#5b21b6" }}>
                   {currentThinking}
                 </div>
               </div>
@@ -79,9 +79,9 @@ const ThinkingChain = memo(function ThinkingChain({
             )}
             {currentActions && currentActions.length > 0 && (
               <div>
-                <div className="text-xs font-bold mb-1" style={{ color: "#34d399" }}>⚡ 执行行为</div>
+                <div className="text-xs font-bold mb-1" style={{ color: "#059669" }}>⚡ 执行行为</div>
                 {currentActions.map((a, i) => (
-                  <div key={i} className="text-xs leading-relaxed" style={{ color: "#6ee7b7" }}>
+                  <div key={i} className="text-xs leading-relaxed" style={{ color: "#047857" }}>
                     {a}
                   </div>
                 ))}
@@ -102,8 +102,8 @@ const ThinkingChain = memo(function ThinkingChain({
             </div>
             {currentRecord.thinking && (
               <div className="mb-3">
-                <div className="text-xs font-bold mb-1" style={{ color: "#a78bfa" }}>💭 深度思考</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#c4b5fd" }}>
+                <div className="text-xs font-bold mb-1" style={{ color: "#7c3aed" }}>💭 深度思考</div>
+                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#5b21b6" }}>
                   {currentRecord.thinking}
                 </div>
               </div>
@@ -118,9 +118,9 @@ const ThinkingChain = memo(function ThinkingChain({
             )}
             {currentRecord.actions.length > 0 && (
               <div>
-                <div className="text-xs font-bold mb-1" style={{ color: "#34d399" }}>⚡ 执行行为</div>
+                <div className="text-xs font-bold mb-1" style={{ color: "#059669" }}>⚡ 执行行为</div>
                 {currentRecord.actions.map((a: string, i: number) => (
-                  <div key={i} className="text-xs leading-relaxed" style={{ color: "#6ee7b7" }}>
+                  <div key={i} className="text-xs leading-relaxed" style={{ color: "#047857" }}>
                     {a}
                   </div>
                 ))}
