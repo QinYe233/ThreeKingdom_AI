@@ -222,7 +222,7 @@ export default function MapCanvas({
       Math.abs(offsetRef.current.y - lastDrawnOffsetRef.current.y) > 0.5;
     const scaleChanged = Math.abs(scaleRef.current - lastDrawnScaleRef.current) > 0.01;
     
-    if (!forceRedraw && !offsetChanged && !scaleChanged) {
+    if (!forceRedraw && !offsetChanged && !scaleChanged && !selectedBlock) {
       return;
     }
     
@@ -237,7 +237,6 @@ export default function MapCanvas({
     ctx.fillStyle = MAP_COLORS.base;
     ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
 
-    // Subtle parchment aged spots
     const rng = seededRandom(Math.floor(Math.random() * 100000));
     for (let i = 0; i < 30; i++) {
       ctx.fillStyle = MAP_COLORS.agedSpots;
@@ -251,6 +250,9 @@ export default function MapCanvas({
     const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
     const scaleX = drawWidth / LON_RANGE;
     const scaleY = drawHeight / LAT_RANGE;
+    
+    const pulsePhase = (Date.now() % 1500) / 1500;
+    const pulseAlpha = 0.3 + Math.sin(pulsePhase * Math.PI * 2) * 0.2;
 
     for (const blockCache of blockPathCacheRef.current) {
       const owner = blocksData[blockCache.name]?.owner || "neutral";
@@ -264,21 +266,70 @@ export default function MapCanvas({
       
       const colorSet = COUNTRY_COLORS[owner] || COUNTRY_COLORS.neutral;
       
-      ctx.fillStyle = colorSet.fill + (isSelected ? "ee" : isHovered ? "dd" : "cc");
+      ctx.fillStyle = colorSet.fill + (isSelected ? "ff" : isHovered ? "ee" : "cc");
       ctx.fill(blockCache.path);
       
-      ctx.strokeStyle = isSelected ? MAP_COLORS.selectionBorder : isHovered ? MAP_COLORS.hoverBorder : colorSet.stroke;
-      ctx.lineWidth = (isSelected ? 2.5 : isHovered ? 2 : 1) / Math.min(scaleX, scaleY);
-      ctx.stroke(blockCache.path);
-      
       if (isSelected) {
+        ctx.strokeStyle = "#FFD700";
+        ctx.lineWidth = 4 / Math.min(scaleX, scaleY);
         ctx.shadowColor = "#FFD700";
-        ctx.shadowBlur = 10 / Math.min(scaleX, scaleY);
+        ctx.shadowBlur = 15 / Math.min(scaleX, scaleY);
+        ctx.stroke(blockCache.path);
+        
+        ctx.strokeStyle = `rgba(255, 215, 0, ${pulseAlpha})`;
+        ctx.lineWidth = 6 / Math.min(scaleX, scaleY);
+        ctx.shadowBlur = 20 / Math.min(scaleX, scaleY);
         ctx.stroke(blockCache.path);
         ctx.shadowBlur = 0;
+      } else if (isHovered) {
+        ctx.strokeStyle = "#b8a888";
+        ctx.lineWidth = 2.5 / Math.min(scaleX, scaleY);
+        ctx.stroke(blockCache.path);
+      } else {
+        ctx.strokeStyle = colorSet.stroke;
+        ctx.lineWidth = 1 / Math.min(scaleX, scaleY);
+        ctx.stroke(blockCache.path);
       }
       
       ctx.restore();
+    }
+
+    for (const blockCache of blockPathCacheRef.current) {
+      const isSelected = selectedBlock === blockCache.name;
+      
+      if (isSelected) {
+        const center = lonLatToCanvas(blockCache.centerLonLat.lon, blockCache.centerLonLat.lat);
+        const owner = blocksData[blockCache.name]?.owner || "neutral";
+        const colorSet = COUNTRY_COLORS[owner] || COUNTRY_COLORS.neutral;
+        
+        ctx.save();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        
+        const label = blockCache.name;
+        ctx.font = "bold 14px 'Ma Shan Zheng', 'SimSun', serif";
+        const textWidth = ctx.measureText(label).width;
+        const padding = 8;
+        const labelHeight = 22;
+        
+        const labelX = center.x - textWidth / 2 - padding;
+        const labelY = center.y - labelHeight / 2;
+        
+        ctx.fillStyle = "rgba(61, 43, 31, 0.9)";
+        ctx.beginPath();
+        ctx.roundRect(labelX, labelY, textWidth + padding * 2, labelHeight, 4);
+        ctx.fill();
+        
+        ctx.strokeStyle = "#FFD700";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.fillStyle = "#FFD700";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, center.x, center.y);
+        
+        ctx.restore();
+      }
     }
 
     for (const blockCache of blockPathCacheRef.current) {
@@ -459,7 +510,9 @@ export default function MapCanvas({
       drawMap(true);
       drawAnimations();
       
-      if (animations.some(a => Date.now() - a.timestamp < ANIMATION_DURATION)) {
+      const hasActiveAnimations = animations.some(a => Date.now() - a.timestamp < ANIMATION_DURATION);
+      
+      if (hasActiveAnimations || selectedBlock) {
         animationFrameRef.current = requestAnimationFrame(render);
       }
     };
@@ -471,7 +524,7 @@ export default function MapCanvas({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [drawMap, drawAnimations, animations]);
+  }, [drawMap, drawAnimations, animations, selectedBlock]);
 
   useEffect(() => {
     drawMap(true);
