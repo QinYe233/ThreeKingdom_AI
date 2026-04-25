@@ -175,7 +175,7 @@ function Start-Backend {
     $requirementsPath = Join-Path $BackendDir "requirements.txt"
     Write-Info "Installing backend dependencies..."
     try {
-        & $venvPython -m pip install -r $requirementsPath -q 2>$null
+        & $venvPython -m pip install -r $requirementsPath
     } catch {
         Write-Warning "Backend dependency installation had issues, continuing..."
     }
