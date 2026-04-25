@@ -1,14 +1,9 @@
 import type { Narrative } from "../../types/game";
+import { COUNTRY_COLORS } from "../../theme";
 
 interface ChroniclerProps {
   narratives: Narrative[];
 }
-
-const COUNTRY_COLORS: Record<string, string> = {
-  "魏": "#5470a6",
-  "蜀": "#c44e52",
-  "吴": "#56a67b",
-};
 
 export default function Chronicler({ narratives }: ChroniclerProps) {
   if (!narratives || narratives.length === 0) {

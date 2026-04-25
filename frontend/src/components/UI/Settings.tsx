@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { THEME_COLORS } from "../../theme";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -22,33 +23,8 @@ interface SettingsProps {
   theme?: "dark" | "parchment";
 }
 
-const THEME_COLORS = {
-  dark: {
-    bg: "#1a1a2e",
-    card: "#16213e",
-    border: "#374151",
-    text: "#fff",
-    textMuted: "#9ca3af",
-    accent: "#f59e0b",
-    input: "#1f2937",
-    error: "#dc2626",
-    success: "#16a34a",
-  },
-  parchment: {
-    bg: "#c9b896",
-    card: "#b8a888",
-    border: "#8b7355",
-    text: "#3d3428",
-    textMuted: "#5a4d3a",
-    accent: "#8b4513",
-    input: "#d4c4a8",
-    error: "#dc2626",
-    success: "#16a34a",
-  },
-};
-
-export default function Settings({ onClose, onComplete, theme = "dark" }: SettingsProps) {
-  const colors = THEME_COLORS[theme];
+export default function Settings({ onClose, onComplete }: SettingsProps) {
+  const colors = THEME_COLORS;
   const [roles, setRoles] = useState<Record<string, RoleInfo>>({});
   const [configs, setConfigs] = useState<Record<string, ConfigStatus>>({});
   const [currentRole, setCurrentRole] = useState<string>("wei");

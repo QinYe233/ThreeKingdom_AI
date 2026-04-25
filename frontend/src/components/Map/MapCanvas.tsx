@@ -1,17 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { MAP_COLORS } from "../../theme";
-
-const COUNTRY_COLORS: Record<string, { fill: string; stroke: string; star: string }> = {
-  "魏": { fill: "#4a6fa5", stroke: "#3d5a80", star: "#6b8fc7" },
-  "蜀": { fill: "#a54657", stroke: "#8b3a4a", star: "#d46a7a" },
-  "吴": { fill: "#4a8f5c", stroke: "#3a7a4a", star: "#6ab87a" },
-  neutral: { fill: "#7a7a7a", stroke: "#5a5a5a", star: "#9a9a9a" },
-  "公孙度": { fill: "#8b7355", stroke: "#6b5340", star: "#ab9375" },
-  "士燮": { fill: "#b8860b", stroke: "#8b6914", star: "#d8a62b" },
-  "南中": { fill: "#8b4513", stroke: "#6b3510", star: "#ab6533" },
-  "山越": { fill: "#6b8e23", stroke: "#556b2f", star: "#8bae43" },
-  "凉州": { fill: "#cd853f", stroke: "#a0522d", star: "#eda55f" },
-};
+import { MAP_COLORS, COUNTRY_COLOR_SETS } from "../../theme";
 
 interface MapAnimation {
   type: string;
@@ -311,7 +299,7 @@ export default function MapCanvas({
       ctx.scale(scaleX, -scaleY);
       ctx.translate(-MIN_LON, -MAX_LAT);
       
-      const colorSet = COUNTRY_COLORS[owner] || COUNTRY_COLORS.neutral;
+      const colorSet = COUNTRY_COLOR_SETS[owner] || COUNTRY_COLOR_SETS.neutral;
       
       ctx.fillStyle = colorSet.fill + (isSelected ? "ff" : isHovered ? "ee" : "cc");
       ctx.fill(blockCache.path);

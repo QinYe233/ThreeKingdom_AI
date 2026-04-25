@@ -353,7 +353,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 results: data.results || results,
               };
             }
-          } catch {}
+          } catch (e) {
+            console.error("SSE parse error:", e);
+          }
         }
       }
 

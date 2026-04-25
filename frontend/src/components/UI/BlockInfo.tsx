@@ -1,28 +1,5 @@
 import type { Block } from "../../types/game";
-
-const COUNTRY_COLORS: Record<string, string> = {
-  "魏": "#5470a6",
-  "蜀": "#c44e52",
-  "吴": "#56a67b",
-  neutral: "#b0b0b0",
-  "公孙度": "#8b7355",
-  "士燮": "#cd853f",
-  "南中": "#8b4513",
-  "山越": "#6b8e23",
-  "凉州": "#d2691e",
-};
-
-const OWNER_NAMES: Record<string, string> = {
-  neutral: "中立",
-  "魏": "魏",
-  "蜀": "蜀",
-  "吴": "吴",
-  "公孙度": "公孙度",
-  "士燮": "士燮",
-  "南中": "南中",
-  "山越": "山越",
-  "凉州": "凉州",
-};
+import { COUNTRY_COLORS, OWNER_NAMES } from "../../theme";
 
 interface BlockInfoProps {
   block: Block | null;
