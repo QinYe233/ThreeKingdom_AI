@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, memo } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, memo } from "react";
 import MapCanvas from "./components/Map/MapCanvas";
 import Settings from "./components/UI/Settings";
 import CountryPanel from "./components/UI/CountryPanel";
