@@ -293,11 +293,12 @@ export default function MapCanvas({
     const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
     const scaleX = drawWidth / LON_RANGE;
     const scaleY = drawHeight / LAT_RANGE;
-    const invMinScale = 1 / Math.min(scaleX, scaleY);
     
     const pulsePhase = (Date.now() % 1500) / 1500;
     const pulseAlpha = 0.3 + Math.sin(pulsePhase * Math.PI * 2) * 0.2;
     const starSize = 8 * scaleRef.current;
+    
+    const selectedBlockCache = selectedBlock ? blockPathMapRef.current.get(selectedBlock) : null;
 
     for (const blockCache of blockPathCacheRef.current) {
       const owner = blocksData[blockCache.name]?.owner || "neutral";
@@ -317,58 +318,27 @@ export default function MapCanvas({
       
       if (isSelected) {
         ctx.strokeStyle = "#FFD700";
-        ctx.lineWidth = 4 * invMinScale;
+        ctx.lineWidth = 3;
         ctx.shadowColor = "#FFD700";
-        ctx.shadowBlur = 15 * invMinScale;
+        ctx.shadowBlur = 10;
         ctx.stroke(blockCache.path);
         
         ctx.strokeStyle = `rgba(255, 215, 0, ${pulseAlpha})`;
-        ctx.lineWidth = 6 * invMinScale;
-        ctx.shadowBlur = 20 * invMinScale;
+        ctx.lineWidth = 5;
+        ctx.shadowBlur = 15;
         ctx.stroke(blockCache.path);
         ctx.shadowBlur = 0;
       } else if (isHovered) {
         ctx.strokeStyle = "#b8a888";
-        ctx.lineWidth = 2.5 * invMinScale;
+        ctx.lineWidth = 2;
         ctx.stroke(blockCache.path);
       } else {
         ctx.strokeStyle = colorSet.stroke;
-        ctx.lineWidth = invMinScale;
+        ctx.lineWidth = 1;
         ctx.stroke(blockCache.path);
       }
       
       ctx.restore();
-
-      if (isSelected) {
-        const center = lonLatToCanvas(blockCache.centerLonLat.lon, blockCache.centerLonLat.lat);
-        
-        ctx.save();
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        
-        const label = blockCache.name;
-        ctx.font = "bold 14px 'Ma Shan Zheng', 'SimSun', serif";
-        const textWidth = ctx.measureText(label).width;
-        const padding = 8;
-        const labelHeight = 22;
-        
-        const labelX = center.x - textWidth / 2 - padding;
-        const labelY = center.y - labelHeight / 2;
-        
-        ctx.fillStyle = "rgba(61, 43, 31, 0.9)";
-        drawRoundRect(ctx, labelX, labelY, textWidth + padding * 2, labelHeight, 4);
-        ctx.fill();
-        
-        ctx.strokeStyle = "#FFD700";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        ctx.fillStyle = "#FFD700";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(label, center.x, center.y);
-        
-        ctx.restore();
-      }
 
       if (isCapital) {
         const center = lonLatToCanvas(blockCache.centerLonLat.lon, blockCache.centerLonLat.lat);
@@ -395,6 +365,37 @@ export default function MapCanvas({
         ctx.stroke();
         ctx.restore();
       }
+    }
+
+    if (selectedBlockCache) {
+      const center = lonLatToCanvas(selectedBlockCache.centerLonLat.lon, selectedBlockCache.centerLonLat.lat);
+      
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      
+      const label = selectedBlockCache.name;
+      ctx.font = "bold 14px 'Ma Shan Zheng', 'SimSun', serif";
+      const textWidth = ctx.measureText(label).width;
+      const padding = 8;
+      const labelHeight = 22;
+      
+      const labelX = center.x - textWidth / 2 - padding;
+      const labelY = center.y - labelHeight / 2;
+      
+      ctx.fillStyle = "rgba(61, 43, 31, 0.9)";
+      drawRoundRect(ctx, labelX, labelY, textWidth + padding * 2, labelHeight, 4);
+      ctx.fill();
+      
+      ctx.strokeStyle = "#FFD700";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      
+      ctx.fillStyle = "#FFD700";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, center.x, center.y);
+      
+      ctx.restore();
     }
   }, [geojson, blocksData, selectedBlock, hoveredBlock, canvasSize, lonLatToCanvas, capitals, getViewTransform]);
 
@@ -590,7 +591,7 @@ export default function MapCanvas({
   }, [canvasToLonLat]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 0 || e.button === 1) {
+    if (e.button === 0) {
       e.preventDefault();
       setIsDragging(true);
       setDragMoved(false);
