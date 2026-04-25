@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile app/main.py)",
+      "Bash(grep -E \"\\\\.bat|\\\\.sh|\\\\.ps1|\\\\.iss$\")",
+      "Bash(find backend:*)",
+      "Bash(grep -E \"\\\\.pyc$|__pycache__\")",
+      "Bash(python -c ':*)",
+      "Bash(powershell -ExecutionPolicy Bypass -Command \".\\\\check_dependencies.py\")",
+      "Bash(python:*)",
+      "Bash(powershell:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git config:*)"
+    ]
+  }
+}
