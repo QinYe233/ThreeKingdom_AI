@@ -485,6 +485,9 @@ export default function MapCanvas({
     const lon = (x - offsetX) / scaleX + MIN_LON;
     const lat = MAX_LAT - (y - offsetY) / scaleY;
 
+    console.log("Converted to lon/lat:", lon, lat);
+    console.log("Checking", blockPathCacheRef.current.length, "blocks");
+
     for (const blockCache of blockPathCacheRef.current) {
       const { bounds } = blockCache;
       if (
@@ -503,11 +506,13 @@ export default function MapCanvas({
           ctx.restore();
 
           if (isInPath) {
+            console.log("Found matching block:", blockCache.name);
             return blockCache.name;
           }
         }
       }
     }
+    console.log("No block found at this position");
     return null;
   }, [getViewTransform]);
 
@@ -546,16 +551,26 @@ export default function MapCanvas({
   }, []);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    
+    console.log("Canvas clicked:", e.button, "at", e.clientX, e.clientY);
+    if (e.button !== 0) {
+      console.log("Not left click, ignoring");
+      return;
+    }
+
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    
+    if (!canvas) {
+      console.log("Canvas not found");
+      return;
+    }
+
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    console.log("Click position relative to canvas:", x, y);
     const found = findBlockAtPoint(x, y);
+    console.log("Found block:", found, "Cache size:", blockPathCacheRef.current.length);
+
     if (found) {
       onSelectBlock(found);
     }

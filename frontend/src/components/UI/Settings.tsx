@@ -73,7 +73,7 @@ export default function Settings({ onClose, onComplete, theme = "dark" }: Settin
       const cfg = configs[currentRole];
       setFormData({
         model: cfg.model || "",
-        api_key: "",
+        api_key: cfg.api_key || "",
         base_url: cfg.base_url || "",
         temperature: cfg.temperature || 0.7,
         max_tokens: cfg.max_tokens || 2000,
