@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=Noto+Serif+SC:wght@400;700&display=swap');
+@import "tailwindcss";
 
 :root {
   --font-title: "Ma Shan Zheng", "华文行楷", cursive;
