@@ -185,8 +185,6 @@ docker-compose up -d
 
 **解决方法**：停止游戏，删除 `backend/data/game_state.json` 文件，重新启动游戏。
 
-更多问题请查看 [新手指南.md](新手指南.md)
-
 ---
 
 ## 📄 许可证
