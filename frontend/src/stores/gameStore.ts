@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, createSelector } from "zustand";
 import type { GameState, Country, Block, General, Relation, Narrative, BattleResult } from "../types/game";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -55,6 +55,27 @@ const COUNTRY_ORDER = ["魏", "蜀", "吴"];
 const MAX_NARRATIVES = 50;
 const MAX_THINKING_RECORDS = 100;
 const MAX_AI_RESULTS = 20;
+
+// Optimized selectors to prevent unnecessary re-renders
+export const selectGameState = createSelector(
+  (state: GameStore) => state,
+  (state) => state.gameState
+);
+
+export const selectCountries = createSelector(
+  (state: GameStore) => state.gameState,
+  (gameState) => gameState?.countries || {}
+);
+
+export const selectBlocks = createSelector(
+  (state: GameStore) => state.gameState,
+  (gameState) => gameState?.blocks || {}
+);
+
+export const selectCurrentRound = createSelector(
+  (state: GameStore) => state.gameState,
+  (gameState) => gameState?.round || 0
+);
 
 export const useGameStore = create<GameStore>((set, get) => ({
   initialized: false,

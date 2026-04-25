@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { THEME_COLORS, MAP_COLORS } from "../../theme";
 
 const COUNTRY_COLORS: Record<string, { fill: string; stroke: string; star: string }> = {
   "魏": { fill: "#4a6fa5", stroke: "#3d5a80", star: "#6b8fc7" },
@@ -10,13 +11,6 @@ const COUNTRY_COLORS: Record<string, { fill: string; stroke: string; star: strin
   "南中": { fill: "#8b4513", stroke: "#6b3510", star: "#ab6533" },
   "山越": { fill: "#6b8e23", stroke: "#556b2f", star: "#8bae43" },
   "凉州": { fill: "#cd853f", stroke: "#a0522d", star: "#eda55f" },
-};
-
-type MapTheme = "dark" | "parchment";
-
-const THEME_BACKGROUNDS: Record<MapTheme, string> = {
-  dark: "#0d1117",
-  parchment: "#c9b896",
 };
 
 interface MapAnimation {
@@ -63,14 +57,13 @@ function seededRandom(seed: number) {
   };
 }
 
-export default function MapCanvas({ 
-  geojson, 
-  blocksData, 
-  countriesData, 
-  selectedBlock, 
-  onSelectBlock, 
-  theme = "dark", 
-  animations = [] 
+export default function MapCanvas({
+  geojson,
+  blocksData,
+  countriesData,
+  selectedBlock,
+  onSelectBlock,
+  animations = []
 }: MapCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,7 +77,6 @@ export default function MapCanvas({
   const [dragMoved, setDragMoved] = useState(false);
   
   const blockPathCacheRef = useRef<BlockPathCache[]>([]);
-  const parchmentSeedRef = useRef(Math.floor(Math.random() * 100000));
   const offsetRef = useRef(offset);
   const scaleRef = useRef(scale);
   const lastDrawnOffsetRef = useRef({ x: 0, y: 0 });
@@ -243,17 +235,16 @@ export default function MapCanvas({
     canvas.height = canvasSize.height * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.fillStyle = THEME_BACKGROUNDS[theme];
+    ctx.fillStyle = MAP_COLORS.base;
     ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
 
-    if (theme === "parchment") {
-      const rng = seededRandom(parchmentSeedRef.current);
-      for (let i = 0; i < 50; i++) {
-        ctx.fillStyle = `rgba(139, 115, 85, ${rng() * 0.15})`;
-        ctx.beginPath();
-        ctx.arc(rng() * canvasSize.width, rng() * canvasSize.height, rng() * 2 + 0.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    // Subtle parchment aged spots
+    const rng = seededRandom(Math.floor(Math.random() * 100000));
+    for (let i = 0; i < 30; i++) {
+      ctx.fillStyle = MAP_COLORS.agedSpots;
+      ctx.beginPath();
+      ctx.arc(rng() * canvasSize.width, rng() * canvasSize.height, rng() * 3 + 0.5, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     if (blockPathCacheRef.current.length === 0) return;
@@ -277,7 +268,7 @@ export default function MapCanvas({
       ctx.fillStyle = colorSet.fill + (isSelected ? "ee" : isHovered ? "dd" : "cc");
       ctx.fill(blockCache.path);
       
-      ctx.strokeStyle = isSelected ? "#FFD700" : isHovered ? "#ffffff" : colorSet.stroke;
+      ctx.strokeStyle = isSelected ? MAP_COLORS.selectionBorder : isHovered ? MAP_COLORS.hoverBorder : colorSet.stroke;
       ctx.lineWidth = (isSelected ? 2.5 : isHovered ? 2 : 1) / Math.min(scaleX, scaleY);
       ctx.stroke(blockCache.path);
       
@@ -491,10 +482,10 @@ export default function MapCanvas({
     const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
     const scaleX = drawWidth / LON_RANGE;
     const scaleY = drawHeight / LAT_RANGE;
-    
+
     const lon = (x - offsetX) / scaleX + MIN_LON;
     const lat = MAX_LAT - (y - offsetY) / scaleY;
-    
+
     for (const blockCache of blockPathCacheRef.current) {
       const { bounds } = blockCache;
       if (
@@ -507,11 +498,11 @@ export default function MapCanvas({
           ctx.translate(offsetX, offsetY);
           ctx.scale(scaleX, -scaleY);
           ctx.translate(-MIN_LON, -MAX_LAT);
-          
-          const isInPath = ctx.isPointInPath(blockCache.path, x, y);
-          
+
+          const isInPath = ctx.isPointInPath(blockCache.path, lon, lat);
+
           ctx.restore();
-          
+
           if (isInPath) {
             return blockCache.name;
           }

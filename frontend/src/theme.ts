@@ -1,5 +1,150 @@
-export type MapTheme = "dark" | "parchment";
+export type MapTheme = never; // Single theme only
 
+// ===========================
+// Parchment Theme (Europa Universalis inspired)
+// Historical Chinese scroll aesthetic
+// ===========================
+
+export const THEME_COLORS = {
+  // Main colors - Warm aged paper palette
+  bg: "#e8dccb",                    // Warm aged paper - main background
+  header: "#d4c8b5",                 // Darker parchment brown - headers
+  sidebar: "#d9d0c7",                 // Slightly lighter than header - sidebars
+  text: "#3d2b1f",                    // Dark brown-ink - primary text
+  textMuted: "#6b5b4f",              // Muted brown - secondary text
+  border: "#b8a888",                    // Subtle parchment border - borders
+  accent: "#8b4513",                   // Traditional Chinese red - highlights
+  card: "#f5f0dc",                    // Lighter paper for cards - card backgrounds
+  input: "#f8f5e8",                    // Slightly lighter than card - input backgrounds
+  success: "#1a6f4a",                // Traditional green - success states
+  error: "#c53030",                   // Vermilion red - error states
+  warning: "#d97706",                // Golden yellow - warning states
+};
+
+export const FONTS = {
+  title: "Ma Shan Zheng, SimSun, serif",    // 马善正楷 - Traditional calligraphy for titles
+  subtitle: "STSong, serif",                  // 宋体 - Song dynasty style for subtitles
+  body: "KaiTi, serif",                     // 楷体 - Kai style for body text
+};
+
+export const FONT_SIZES = {
+  title: "1.5rem",      // Large titles
+  subtitle: "1.125rem",  // Subtitles
+  body: "0.875rem",    // Body text
+  caption: "0.75rem",    // Captions
+};
+
+// Parchment texture effects using CSS
+export const PARCHMENT_EFFECTS = {
+  // Main background with aged spots
+  background: `
+    linear-gradient(135deg,
+      transparent 95%,
+      rgba(139, 115, 85, 0.03) 100%
+    ),
+    radial-gradient(ellipse at center,
+      transparent 0%,
+      rgba(139, 115, 85, 0.05) 100%
+    )
+  `,
+
+  // Scroll-style panel edges (traditional scroll ends)
+  scrollEdges: `
+    inset 0 0 4px 0 rgba(139, 115, 85, 0.1),
+    inset 0 4px 0 4px rgba(139, 115, 85, 0.1)
+  `,
+
+  // Scroll gradient (fade effect like scroll ends)
+  scrollGradient: `
+    linear-gradient(to bottom,
+      transparent 0%,
+      rgba(139, 115, 85, 0.15) 15%,
+      transparent 15%,
+      transparent 85%,
+      rgba(139, 115, 85, 0.15) 100%
+    )
+  `,
+
+  // Paper shadow effect (aged paper depth)
+  paperShadow: `
+    0 4px 12px rgba(61, 43, 31, 0.15),
+    inset 0 1px 3px rgba(255, 255, 255, 0.1)
+  `,
+
+  // Traditional red seal effect for important items
+  redSeal: `
+    0 2px 4px rgba(197, 48, 48, 0.3),
+    inset 0 -1px 2px rgba(248, 108, 107, 0.3)
+  `,
+};
+
+// Component-specific styles
+export const COMPONENT_STYLES = {
+  // Scroll-style panel backgrounds
+  scrollPanel: {
+    background: `linear-gradient(to bottom,
+      ${THEME_COLORS.bg} 0%,
+      ${THEME_COLORS.card} 2%,
+      ${THEME_COLORS.bg} 5%
+    )`,
+    borderLeft: "3px solid rgba(139, 115, 85, 0.6)",
+    borderRight: "3px solid rgba(139, 115, 85, 0.6)",
+    boxShadow: "0 4px 12px rgba(61, 43, 31, 0.15)",
+  },
+
+  // Card effect
+  card: {
+    background: THEME_COLORS.card,
+    border: `1px solid rgba(139, 115, 85, 0.3)`,
+    boxShadow: PARCHMENT_EFFECTS.paperShadow,
+    borderRadius: "4px",
+  },
+
+  // Button styles
+  button: {
+    background: THEME_COLORS.accent,
+    color: "#ffffff",
+    border: `1px solid rgba(139, 115, 85, 0.2)`,
+    boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.1)",
+    transition: "all 0.2s ease",
+  },
+  buttonHover: {
+    background: "#a55830", // Darker red
+    boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.2)",
+  },
+
+  // Input styles
+  input: {
+    background: THEME_COLORS.input,
+    border: `1px solid ${THEME_COLORS.border}`,
+    color: THEME_COLORS.text,
+    boxShadow: "inset 0 0 2px rgba(139, 115, 85, 0.05)",
+  },
+
+  // Divider styles
+  divider: {
+    background: `linear-gradient(to right,
+      transparent 0%,
+      rgba(139, 115, 85, 0.2) 50%,
+      transparent 100%
+    )`,
+    height: "1px",
+  },
+};
+
+// Map background colors
+export const MAP_COLORS = {
+  base: "#f0e6d3",                    // Very light parchment - map base
+  water: "#d4c8b5",                  // Muted brown - water areas
+  gridLines: "rgba(139, 115, 85, 0.08)",  // Very subtle - grid overlay
+  agedSpots: "rgba(139, 115, 85, 0.05)",  // Random aged spots - texture
+  selectionBorder: "#8b4513",        // Traditional red - selection highlight
+  selectionFill: "rgba(139, 115, 85, 0.3)",  // Aged paper - selection fill
+  hoverBorder: "#b8a888",            // Subtle parchment - hover effect
+  hoverFill: "rgba(139, 115, 85, 0.2)",  // Light parchment - hover fill
+};
+
+// Keep existing useful constants
 export const COUNTRY_COLORS: Record<string, string> = {
   "魏": "#5470a6",
   "蜀": "#c44e52",
@@ -24,61 +169,8 @@ export const COUNTRY_COLOR_SETS: Record<string, { fill: string; stroke: string; 
   "凉州": { fill: "#cd853f", stroke: "#a0522d", star: "#eda55f" },
 };
 
-export const THEME_NAMES: Record<MapTheme, string> = {
-  dark: "夜间模式",
-  parchment: "历史质感",
-};
-
-export const THEME_COLORS: Record<MapTheme, ThemeColors> = {
-  dark: {
-    bg: "#0d1117",
-    header: "#161b22",
-    sidebar: "#161b22",
-    text: "#e6edf3",
-    textMuted: "#8b949e",
-    border: "#30363d",
-    accent: "#f59e0b",
-    card: "#21262d",
-    input: "#0d1117",
-    success: "#34d399",
-    error: "#f87171",
-    warning: "#fbbf24",
-  },
-  parchment: {
-    bg: "#c9b896",
-    header: "#b8a888",
-    sidebar: "#b8a888",
-    text: "#3d3428",
-    textMuted: "#5a4d3a",
-    border: "#8b7355",
-    accent: "#8b4513",
-    card: "#d4c4a8",
-    input: "#e8dcc8",
-    success: "#16a34a",
-    error: "#dc2626",
-    warning: "#ca8a04",
-  },
-};
-
-export const THEME_BACKGROUNDS: Record<MapTheme, string> = {
-  dark: "#0d1117",
-  parchment: "#c9b896",
-};
-
-export interface ThemeColors {
-  bg: string;
-  header: string;
-  sidebar: string;
-  text: string;
-  textMuted: string;
-  border: string;
-  accent: string;
-  card: string;
-  input: string;
-  success: string;
-  error: string;
-  warning: string;
-}
+export const THEME_NAMES: never = {}; // Empty - no theme switching
+export const THEME_BACKGROUNDS: never = {}; // Empty - no theme switching
 
 export const OWNER_NAMES: Record<string, string> = {
   neutral: "中立",
@@ -112,15 +204,15 @@ export const getRelationStatus = (rel: { at_war: boolean; is_allied: boolean; tr
 };
 
 export const getActionPointColor = (ap: number) => {
-  if (ap > 3) return { bg: "rgba(52,211,153,0.2)", text: "#34d399" };
-  if (ap > 0) return { bg: "rgba(251,191,36,0.2)", text: "#fbbf24" };
-  return { bg: "rgba(239,68,68,0.2)", text: "#ef4444" };
+  if (ap > 3) return { bg: "rgba(26, 111, 19, 0.2)", text: "#1a6f4a" };
+  if (ap > 0) return { bg: "rgba(217, 145, 53, 0.2)", text: "#d97706" };
+  return { bg: "rgba(197, 48, 48, 0.2)", text: "#c53030" };
 };
 
 export const getOrderMoraleColor = (value: number) => {
-  if (value >= 60) return "#16a34a";
-  if (value >= 30) return "#ca8a04";
-  return "#dc2626";
+  if (value >= 60) return "#1a6f4a";
+  if (value >= 30) return "#d97706";
+  return "#c53030";
 };
 
 export interface ThinkingRecord {

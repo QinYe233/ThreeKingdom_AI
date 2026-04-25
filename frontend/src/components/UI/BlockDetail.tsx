@@ -8,6 +8,7 @@ interface BlockDetailProps {
   theme: ThemeColors;
 }
 
+// Optimized with custom comparison to prevent unnecessary re-renders
 const BlockDetail = memo(function BlockDetail({ block, blockName, theme }: BlockDetailProps) {
   if (!block) {
     return (
@@ -18,11 +19,13 @@ const BlockDetail = memo(function BlockDetail({ block, blockName, theme }: Block
   }
 
   const ownerName = OWNER_NAMES[block.owner] || block.owner;
+  const orderColor = getOrderMoraleColor(block.order);
+  const moraleColor = getOrderMoraleColor(block.morale);
 
   return (
-    <div 
+    <div
       className="p-3 rounded text-sm"
-      style={{ 
+      style={{
         backgroundColor: theme.bg,
         fontFamily: "'Microsoft YaHei', 'PingFang SC', sans-serif",
         lineHeight: 1.6
@@ -40,11 +43,11 @@ const BlockDetail = memo(function BlockDetail({ block, blockName, theme }: Block
         </div>
         <div style={{ color: theme.text }}>
           <span style={{ color: theme.textMuted }}>秩序:</span>{" "}
-          <span style={{ color: getOrderMoraleColor(block.order) }}>{block.order}</span>
+          <span style={{ color: orderColor }}>{block.order}</span>
         </div>
         <div style={{ color: theme.text }}>
           <span style={{ color: theme.textMuted }}>士气:</span>{" "}
-          <span style={{ color: getOrderMoraleColor(block.morale) }}>{block.morale}</span>
+          <span style={{ color: moraleColor }}>{block.morale}</span>
         </div>
         <div style={{ color: theme.text }}>
           <span style={{ color: theme.textMuted }}>人力池:</span> {block.manpower_pool}
@@ -70,6 +73,13 @@ const BlockDetail = memo(function BlockDetail({ block, blockName, theme }: Block
         )}
       </div>
     </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  return (
+    prevProps.block === nextProps.block &&
+    prevProps.blockName === nextProps.blockName &&
+    prevProps.theme === nextProps.theme
   );
 });
 

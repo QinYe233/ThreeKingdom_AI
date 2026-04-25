@@ -636,6 +636,33 @@ def next_round():
     round_result["borderland_events"] = borderland_events
     round_result["historical_events"] = historical_events
 
+    # 自动存档（每5回合自动存档一次）
+    autosave_interval = get_config("game_settings.autosave_interval", 5)
+    if current_round % autosave_interval == 0 and current_round > 0:
+        try:
+            from .save_api import _save_game_state, _generate_save_id, SAVE_DIR, SAVE_VERSION
+            from datetime import datetime
+            import json
+
+            save_data = _save_game_state(engine.state)
+            save_id = _generate_save_id(is_autosave=True)
+            save_data["save_id"] = save_id
+            save_data["timestamp"] = datetime.now().isoformat()
+            save_data["metadata"]["manual"] = False
+            save_data["metadata"]["autosave"] = True
+
+            save_path = SAVE_DIR / f"{save_id}.json"
+            with open(save_path, "w", encoding="utf-8") as f:
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"Autosave created: {save_id}")
+
+            # 清理旧自动存档
+            from .save_api import _cleanup_old_saves
+            _cleanup_old_saves()
+        except Exception as e:
+            logger.error(f"Failed to create autosave: {e}")
+
     logger.info(f"Round {current_round} processed, now at round {state.round}")
     return {
         "round_result": round_result,

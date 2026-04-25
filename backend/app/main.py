@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import game_router, map_router, ai_router
+from .api import game_router, map_router, ai_router, save_router
 
 app = FastAPI(
     title="AI三国演义 API",
@@ -20,6 +20,7 @@ app.add_middleware(
 app.include_router(game_router, prefix="/api")
 app.include_router(map_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")
+app.include_router(save_router, prefix="/api")
 
 
 @app.get("/")

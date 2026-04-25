@@ -1,6 +1,6 @@
 import { memo, useRef, useEffect } from "react";
 import type { Narrative } from "../../types/game";
-import type { ThemeColors } from "../../theme";
+import type { ThemeColors, FONTS } from "../../theme";
 import { COUNTRY_COLORS } from "../../theme";
 
 interface ChroniclerPanelProps {
@@ -37,7 +37,7 @@ const ChroniclerPanel = memo(function ChroniclerPanel({
       >
         <div className="h-full flex flex-col">
           <div className="flex items-center justify-between p-2 border-b" style={{ borderColor: theme.border }}>
-            <div className="text-sm font-subtitle font-bold" style={{ color: theme.accent }}>📜 史官编年</div>
+            <div className="text-sm font-subtitle font-bold" style={{ color: theme.accent, fontFamily: FONTS.subtitle }}>📜 史官编年</div>
             <button
               className="w-6 h-6 rounded cursor-pointer flex items-center justify-center"
               style={{ backgroundColor: theme.border, color: theme.textMuted }}
@@ -46,7 +46,7 @@ const ChroniclerPanel = memo(function ChroniclerPanel({
             </button>
           </div>
           <div className="flex-1 flex items-center justify-center">
-            <div className="p-4 text-center text-sm font-body" style={{ color: theme.textMuted }}>
+            <div className="p-4 text-center text-sm font-body" style={{ color: theme.textMuted, fontFamily: FONTS.body }}>
               等待史官记录...
             </div>
           </div>
@@ -69,7 +69,7 @@ const ChroniclerPanel = memo(function ChroniclerPanel({
     >
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between p-2 border-b" style={{ borderColor: theme.border }}>
-          <div className="text-sm font-subtitle font-bold" style={{ color: theme.accent }}>📜 史官编年</div>
+          <div className="text-sm font-subtitle font-bold" style={{ color: theme.accent, fontFamily: FONTS.subtitle }}>📜 史官编年</div>
           <button
             className="w-6 h-6 rounded cursor-pointer flex items-center justify-center"
             style={{ backgroundColor: theme.border, color: theme.textMuted }}
@@ -79,65 +79,159 @@ const ChroniclerPanel = memo(function ChroniclerPanel({
         </div>
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-4">
           {sortedNarratives.map((narrative) => (
-            <div key={narrative.round} className="border-b pb-3" style={{ borderColor: "rgba(128,128,128,0.3)" }}>
-              <div className="text-center mb-2">
-                <div className="text-base font-title font-bold" style={{ color: "#d97706" }}>
-                  第{narrative.round}回 · {narrative.date}
+            <div key={narrative.round} className="mb-3" style={{
+              padding: "8px",
+              background: "linear-gradient(to bottom, #f0e6d3, #e8dccb)",
+              borderLeft: "4px solid rgba(139, 115, 85, 0.6)",
+              boxShadow: "inset 0 2px 8px rgba(139, 115, 85, 0.1)"
+            }}>
+              {/* Header */}
+              <div className="text-center mb-3 pb-2 border-b-2" style={{
+                borderColor: "rgba(139, 115, 85, 0.2)",
+                fontFamily: FONTS.title
+              }}>
+                <div className="text-lg" style={{ color: theme.text, fontWeight: "bold" }}>
+                  📜 第{narrative.round}回 · {narrative.date}
                 </div>
               </div>
 
+              {/* Historian's Commentary - Main Feature */}
               {narrative.narrative && (
-                <div className="text-xs p-2 rounded mb-2 font-body leading-relaxed whitespace-pre-wrap"
-                  style={{ backgroundColor: "rgba(55, 65, 81, 0.15)", color: "#d4d4d8" }}
-                >
-                  {narrative.narrative}
-                </div>
-              )}
+                <div className="mb-4 p-4 relative" style={{
+                  background: "linear-gradient(to bottom, #f5f0dc 0%, #e8dccb 100%)",
+                  border: "1px solid rgba(139, 115, 85, 0.3)",
+                  fontFamily: FONTS.body,
+                  color: theme.text,
+                  fontSize: "0.875rem",
+                  lineHeight: "1.75",
+                  letterSpacing: "0.05em"
+                }}>
+                  {/* Decorative scroll ends */}
+                  <div className="absolute top-0 left-0 w-4 h-full" style={{
+                    background: "linear-gradient(to bottom, transparent, rgba(139, 115, 85, 0.2) 50%, transparent)"
+                  }} />
+                  <div className="absolute top-0 right-0 w-4 h-full" style={{
+                    background: "linear-gradient(to bottom, transparent, rgba(139, 115, 85, 0.2) 50%, transparent)"
+                  }} />
 
-              {narrative.trend && Object.keys(narrative.trend).length > 0 && (
-                <div className="flex gap-1 flex-wrap mb-2">
-                  {Object.entries(narrative.trend).map(([name, t]: [string, any]) => (
-                    <div key={name} className="text-xs px-2 py-1 rounded"
-                      style={{ backgroundColor: "rgba(55, 65, 81, 0.2)", borderLeft: `3px solid ${COUNTRY_COLORS[name] || "#888"}` }}
+                  {/* Red seal for important events */}
+                  {narrative.events?.some(e =>
+                    e.type === "collapse" || e.type === "capital_fallen" || e.type === "nation_defeated"
+                  ) && (
+                    <div className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ background: theme.error, boxShadow: "0 2px 4px rgba(197, 48, 48, 0.3)" }}
                     >
-                      <span style={{ color: COUNTRY_COLORS[name] || "#888", fontWeight: "bold" }}>{name}</span>
-                      <span style={{ color: "#9ca3af" }}> {t.military_trend} · {t.economy_trend}</span>
+                      <span className="text-xs font-bold" style={{ color: "#fff", fontFamily: FONTS.subtitle }}>
+                        史
+                      </span>
                     </div>
-                  ))}
+                  )}
+
+                  <div className="pl-8 pr-8" style={{ textAlign: "justify" }}>
+                    {narrative.narrative}
+                  </div>
                 </div>
               )}
 
+              {/* Military Affairs Section */}
               {narrative.events && narrative.events.length > 0 && (
-                <div className="space-y-1">
-                  {narrative.events.map((event, i) => (
-                    <div
-                      key={i}
-                      className="text-xs p-1.5 rounded font-body leading-relaxed"
-                      style={{
-                        backgroundColor: event.type === "collapse" || event.type === "capital_fallen" || event.type === "nation_defeated"
-                          ? "rgba(153, 27, 27, 0.2)"
-                          : event.type === "capture"
-                          ? "rgba(180, 83, 9, 0.2)"
-                          : event.type === "battle"
-                          ? "rgba(120, 53, 15, 0.2)"
-                          : "rgba(55, 65, 81, 0.15)",
-                        color: event.type === "collapse" || event.type === "capital_fallen" || event.type === "nation_defeated"
-                          ? "#fca5a5"
-                          : event.type === "capture"
-                          ? "#fcd34d"
-                          : event.type === "battle"
-                          ? "#fbbf24"
-                          : "#d1d5db",
-                      }}
-                    >
-                      {event.message}
-                    </div>
-                  ))}
+                <div className="mb-4">
+                  <div className="text-xs mb-2 pb-1" style={{
+                    color: theme.textMuted,
+                    fontFamily: FONTS.subtitle,
+                    borderBottom: "1px dashed rgba(139, 115, 85, 0.3)"
+                  }}>
+                    ─ 战况纪要 ─
+                  </div>
+                  <div className="space-y-1.5 pl-2" style={{ borderLeft: "2px solid rgba(139, 115, 85, 0.3)" }}>
+                    {narrative.events.map((event, i) => (
+                      <div
+                        key={i}
+                        className="text-xs pl-2 relative"
+                        style={{
+                          fontFamily: FONTS.body,
+                          color: theme.text,
+                          lineHeight: "1.6"
+                        }}
+                      >
+                        {/* Event icon */}
+                        <span className="absolute -left-3 top-0.5 w-1.5 h-1.5 text-center text-xs"
+                          style={{
+                            background: event.type === "collapse" || event.type === "capital_fallen" || event.type === "nation_defeated"
+                              ? theme.error
+                              : event.type === "capture"
+                              ? theme.accent
+                              : event.type === "battle"
+                              ? theme.warning
+                              : theme.success
+                          }}
+                        >
+                          {event.type === "collapse" ? "🏛" :
+                           event.type === "capital_fallen" ? "🏰" :
+                           event.type === "nation_defeated" ? "💀" :
+                           event.type === "capture" ? "🚩" :
+                           event.type === "battle" ? "⚔️" : "📋"}
+                        </span>
+                        {event.message}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
+              {/* Trends Analysis */}
+              {narrative.trend && Object.keys(narrative.trend).length > 0 && (
+                <div>
+                  <div className="text-xs mb-2 pb-1" style={{
+                    color: theme.textMuted,
+                    fontFamily: FONTS.subtitle,
+                    borderBottom: "1px dashed rgba(139, 115, 85, 0.3)"
+                  }}>
+                    ─ 趋势评述 ─
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(narrative.trend).map(([name, t]: [string, any]) => (
+                      <div key={name} className="p-2 relative" style={{
+                        background: "linear-gradient(135deg, rgba(139, 115, 85, 0.1), rgba(139, 115, 85, 0.05))",
+                        border: "1px solid rgba(139, 115, 85, 0.2)",
+                        fontFamily: FONTS.body
+                      }}>
+                        <div className="text-xs mb-1" style={{
+                          color: COUNTRY_COLORS[name] || theme.text,
+                          fontWeight: "bold",
+                          borderBottom: "1px solid rgba(139, 115, 85, 0.2)"
+                        }}>
+                          {name}
+                        </div>
+                        <div className="flex gap-1 text-xs">
+                          <span style={{ color: theme.success }}>
+                            {t.military_trend.includes("成长") ? "📈" : "📉"}
+                          </span>
+                          <span style={{ color: theme.textMuted }}>
+                            兵势：{t.military_trend}
+                          </span>
+                        </div>
+                        <div className="flex gap-1 text-xs">
+                          <span style={{ color: theme.warning }}>
+                            {t.economy_trend.includes("成长") ? "📈" : "📉"}
+                          </span>
+                          <span style={{ color: theme.textMuted }}>
+                            库储：{t.economy_trend}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
               {(!narrative.events || narrative.events.length === 0) && !narrative.narrative && (
-                <div className="text-xs text-center" style={{ color: theme.textMuted }}>
+                <div className="text-center py-6" style={{
+                  fontFamily: FONTS.body,
+                  color: theme.textMuted,
+                  fontStyle: "italic"
+                }}>
                   是岁无事，天下太平。
                 </div>
               )}

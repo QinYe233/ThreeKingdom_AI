@@ -7,15 +7,15 @@ import ThinkingChain from "./components/UI/ThinkingChain";
 import HistoryPanel from "./components/UI/HistoryPanel";
 import DiplomacyPanel from "./components/UI/DiplomacyPanel";
 import ChroniclerPanel from "./components/UI/ChroniclerPanel";
+import SaveLoadPanel from "./components/UI/SaveLoadPanel";
 import { useGameStore } from "./stores/gameStore";
 import type { Block } from "./types/game";
-import type { MapTheme, ThinkingRecord } from "./theme";
+import type { ThinkingRecord } from "./theme";
 import {
-  THEME_COLORS,
-  THEME_NAMES,
-  COUNTRY_COLORS,
-  SPEED_OPTIONS,
-} from "./theme";
+	  THEME_COLORS,
+	  COUNTRY_COLORS,
+	  SPEED_OPTIONS,
+	} from "./theme";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -35,15 +35,15 @@ const Header = memo(function Header({
   isProcessing,
   autoPlay,
   speed,
-  mapTheme,
   showHistory,
+  showSaveLoad,
   showDiplomacy,
   showChronicler,
   theme,
   onToggleHistory,
+  onToggleSaveLoad,
   onToggleDiplomacy,
   onToggleChronicler,
-  onChangeTheme,
   onToggleAutoPlay,
   onChangeSpeed,
   onNextAction,
@@ -54,15 +54,15 @@ const Header = memo(function Header({
   isProcessing: boolean;
   autoPlay: boolean;
   speed: number;
-  mapTheme: MapTheme;
   showHistory: boolean;
+  showSaveLoad: boolean;
   showDiplomacy: boolean;
   showChronicler: boolean;
   theme: any;
   onToggleHistory: () => void;
+  onToggleSaveLoad: () => void;
   onToggleDiplomacy: () => void;
   onToggleChronicler: () => void;
-  onChangeTheme: (theme: MapTheme) => void;
   onToggleAutoPlay: () => void;
   onChangeSpeed: (speed: number) => void;
   onNextAction: () => void;
@@ -105,16 +105,13 @@ const Header = memo(function Header({
         >
           史官
         </button>
-        <select
-          value={mapTheme}
-          onChange={(e) => onChangeTheme(e.target.value as MapTheme)}
-          className="px-2 py-1 rounded text-sm border"
-          style={{ backgroundColor: theme.sidebar, color: theme.text, borderColor: theme.border }}
+        <button
+          onClick={onToggleSaveLoad}
+          className="px-3 py-1.5 rounded text-sm cursor-pointer transition-all duration-200"
+          style={{ backgroundColor: showSaveLoad ? theme.accent : theme.border, color: showSaveLoad ? "#fff" : theme.text }}
         >
-          {Object.entries(THEME_NAMES).map(([key, name]) => (
-            <option key={key} value={key}>{name}</option>
-          ))}
-        </select>
+          存档
+        </button>
         <button
           onClick={onToggleAutoPlay}
           className="px-3 py-1.5 rounded text-sm cursor-pointer transition-all duration-200"
@@ -150,20 +147,24 @@ const Header = memo(function Header({
 
 const InitScreen = memo(function InitScreen({
   theme,
-  mapTheme,
   initLoading,
   showSettings,
+  showSaveLoad,
   onInit,
   onShowSettings,
+  onShowSaveLoad,
   onCloseSettings,
+  onCloseSaveLoad,
 }: {
   theme: any;
-  mapTheme: "dark" | "parchment";
   initLoading: boolean;
   showSettings: boolean;
+  showSaveLoad: boolean;
   onInit: () => void;
   onShowSettings: () => void;
+  onShowSaveLoad: () => void;
   onCloseSettings: () => void;
+  onCloseSaveLoad: () => void;
 }) {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: theme.bg }}>
@@ -188,6 +189,14 @@ const InitScreen = memo(function InitScreen({
           >
             设置
           </button>
+          <button
+            onClick={onShowSaveLoad}
+            disabled={initLoading}
+            className="btn-breathe px-12 py-3 text-lg rounded-lg cursor-pointer transition-all duration-300 hover:scale-105 disabled:opacity-50 font-subtitle"
+            style={{ backgroundColor: theme.border, color: theme.text, minWidth: 200 }}
+          >
+            存档
+          </button>
         </div>
         {initLoading && (
           <div style={{ color: theme.textMuted }} className="font-body">
@@ -200,7 +209,13 @@ const InitScreen = memo(function InitScreen({
         <Settings
           onClose={onCloseSettings}
           onComplete={() => {}}
-          theme={mapTheme}
+        />
+      )}
+      {showSaveLoad && (
+        <SaveLoadPanel
+          show={showSaveLoad}
+          onClose={onCloseSaveLoad}
+          theme={theme}
         />
       )}
     </div>
@@ -235,7 +250,7 @@ export default function App() {
   const [autoPlay, setAutoPlay] = useState(false);
   const [speed, setSpeed] = useState(3000);
   const [showSettings, setShowSettings] = useState(false);
-  const [mapTheme, setMapTheme] = useState<MapTheme>("parchment");
+  const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [showNoConfigWarning, setShowNoConfigWarning] = useState(false);
   const [leftSidebarHidden, setLeftSidebarHidden] = useState(false);
   const [mapAnimations, setMapAnimations] = useState<any[]>([]);
@@ -246,7 +261,7 @@ export default function App() {
   const [diplomaticEvents, setDiplomaticEvents] = useState<DiplomaticEvent[]>([]);
   const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<ThinkingRecord | null>(null);
   const [thinkingComplete, setThinkingComplete] = useState(false);
-  
+
   const autoPlayRef = useRef(false);
   const speedRef = useRef(speed);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -254,7 +269,7 @@ export default function App() {
   autoPlayRef.current = autoPlay;
   speedRef.current = speed;
 
-  const theme = THEME_COLORS[mapTheme];
+  const theme = THEME_COLORS;
 
   useEffect(() => {
     fetch(`${API_BASE}/map/geojson`)
@@ -306,6 +321,11 @@ export default function App() {
       console.error(e);
     }
   }, []);
+
+  // Memoized computed values to prevent unnecessary recalculations
+  const currentRound = useMemo(() => gameState?.round || 0, [gameState]);
+  const currentRecord = useMemo(() => thinkingRecords.find(r => r.round === currentRound && r.country === currentActingCountry), [thinkingRecords, currentRound, currentActingCountry]);
+  const selectedBlockData = useMemo(() => selectedBlock ? blocksData[selectedBlock] : null, [selectedBlock, blocksData]);
 
   const handleInit = useCallback(async () => {
     setInitLoading(true);
@@ -454,20 +474,18 @@ export default function App() {
     };
   }, [autoPlay, initialized, pendingCountrySwitch, scheduleAutoPlay]);
 
-  const selectedBlockData = selectedBlock ? blocksData[selectedBlock] : null;
-  const currentRound = gameState?.round || 0;
-  const currentRecord = thinkingRecords.find(r => r.round === currentRound && r.country === currentActingCountry);
-
   if (!initialized) {
     return (
       <InitScreen
         theme={theme}
-        mapTheme={mapTheme}
         initLoading={initLoading}
         showSettings={showSettings}
+        showSaveLoad={showSaveLoad}
         onInit={handleInit}
         onShowSettings={() => setShowSettings(true)}
+        onShowSaveLoad={() => setShowSaveLoad(true)}
         onCloseSettings={() => setShowSettings(false)}
+        onCloseSaveLoad={() => setShowSaveLoad(false)}
       />
     );
   }
@@ -481,15 +499,15 @@ export default function App() {
         isProcessing={isProcessing}
         autoPlay={autoPlay}
         speed={speed}
-        mapTheme={mapTheme}
         showHistory={showHistory}
+        showSaveLoad={showSaveLoad}
         showDiplomacy={showDiplomacy}
         showChronicler={showChronicler}
         theme={theme}
         onToggleHistory={() => setShowHistory(prev => !prev)}
+        onToggleSaveLoad={() => setShowSaveLoad(prev => !prev)}
         onToggleDiplomacy={() => setShowDiplomacy(prev => !prev)}
         onToggleChronicler={() => setShowChronicler(prev => !prev)}
-        onChangeTheme={setMapTheme}
         onToggleAutoPlay={() => setAutoPlay(prev => !prev)}
         onChangeSpeed={setSpeed}
         onNextAction={handleNextAction}
@@ -504,7 +522,6 @@ export default function App() {
               countriesData={gameState?.countries}
               selectedBlock={selectedBlock}
               onSelectBlock={selectBlock}
-              theme={mapTheme}
               animations={mapAnimations}
             />
           )}
@@ -586,6 +603,12 @@ export default function App() {
           theme={theme}
         />
 
+        <SaveLoadPanel
+          show={showSaveLoad}
+          onClose={() => setShowSaveLoad(false)}
+          theme={theme}
+        />
+
         <DiplomacyPanel
           show={showDiplomacy}
           relations={relations}
@@ -632,7 +655,6 @@ export default function App() {
         <Settings
           onClose={() => setShowSettings(false)}
           onComplete={() => {}}
-          theme={mapTheme}
         />
       )}
     </div>

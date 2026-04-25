@@ -128,6 +128,10 @@ class AIDecisionEngine:
         actions = []
         country = self.state.countries[country_name]
 
+        attack_cost = ACTION_COSTS.get("attack", 1000)
+        max_attacks = int(ap * 1000 / attack_cost) if attack_cost > 0 else 6
+        attacks_planned = 0
+
         if country.gold >= 300:
             low_order_blocks = [
                 b for b in self.state.blocks.values()
@@ -160,6 +164,8 @@ class AIDecisionEngine:
             for neighbor_name in block.neighbors:
                 neighbor = self.state.blocks.get(neighbor_name)
                 if neighbor and neighbor.owner not in [country_name, "neutral"] and neighbor.garrison < block.garrison * 0.5:
+                    if attacks_planned >= max_attacks:
+                        break
                     if block.garrison >= 150:
                         troops = max(int(block.garrison * 0.4), 100)
                         actions.append({
@@ -168,15 +174,21 @@ class AIDecisionEngine:
                             "parameters": {"from": block.name, "to": neighbor.name, "troops": troops},
                             "priority": 6,
                         })
-                        break
+                        attacks_planned += 1
 
         return actions
 
     def _defend_actions(self, country_name: str, ap: int) -> list[dict]:
         actions = []
 
+        move_cost = ACTION_COSTS.get("move", 500)
+        max_moves = int(ap * 1000 / move_cost) if move_cost > 0 else 12
+        moves_planned = 0
+
         border_blocks = self._get_border_blocks(country_name)
         for block in border_blocks:
+            if moves_planned >= max_moves:
+                break
             if block.garrison < 200:
                 safe_blocks = [
                     b for b in self.state.blocks.values()
@@ -192,13 +204,13 @@ class AIDecisionEngine:
                             "parameters": {"from": source.name, "to": block.name, "troops": troops},
                             "priority": 9,
                         })
-                        break
+                        moves_planned += 1
 
         country = self.state.countries[country_name]
         if country.gold >= 150:
             recruit_blocks = [
                 b for b in self.state.blocks.values()
-                if b.owner == country_name and b.manpower_pool >= 20 and not b.recently_conquered
+                if b.owner == country_name and b.manpower_pool >= 20 and not block.recently_conquered
             ]
             if recruit_blocks:
                 target = max(recruit_blocks, key=lambda b: b.manpower_pool)
@@ -209,8 +221,10 @@ class AIDecisionEngine:
                     "priority": 6,
                 })
 
+        remaining_ap = ap - moves_planned * move_cost
+
         neutral_targets = self._find_attack_targets(country_name, "neutral")
-        if neutral_targets and country.gold >= 150:
+        if neutral_targets and remaining_ap >= 1000:
             attacker, target = neutral_targets[0]
             if attacker.garrison >= 150:
                 troops = max(int(attacker.garrison * 0.4), 100)
@@ -230,6 +244,10 @@ class AIDecisionEngine:
         if not enemy:
             return self._expand_actions(country_name, ap)
 
+        attack_cost = ACTION_COSTS.get("attack", 1000)
+        max_attacks = int(ap * 1000 / attack_cost) if attack_cost > 0 else 6
+        attacks_planned = 0
+
         enemy_border_blocks = []
         my_blocks = [b for b in self.state.blocks.values() if b.owner == country_name]
         for block in my_blocks:
@@ -243,31 +261,20 @@ class AIDecisionEngine:
                 (attacker, target) for attacker, target in enemy_border_blocks
                 if attacker.garrison >= 150
             ]
-            if attackable:
-                attacker, target = max(attackable, key=lambda x: x[0].garrison - x[1].garrison * 0.5)
+
+            attackable.sort(key=lambda x: x[0].garrison - x[1].garrison * 0.5)
+
+            for attacker, target in attackable:
+                if attacks_planned >= max_attacks:
+                    break
                 troops = max(int(attacker.garrison * 0.5), 100)
                 actions.append({
                     "action_type": "attack",
                     "country": country_name,
                     "parameters": {"from": attacker.name, "to": target.name, "troops": troops},
-                    "priority": 10,
-                })
-
-        country = self.state.countries[country_name]
-        if country.gold >= 150:
-            recruit_blocks = [
-                b for b in my_blocks
-                if b.manpower_pool >= 20 and not b.recently_conquered
-                and self.state.round - b.last_recruit_round >= 2
-            ]
-            if recruit_blocks:
-                target = max(recruit_blocks, key=lambda b: b.manpower_pool)
-                actions.append({
-                    "action_type": "recruit",
-                    "country": country_name,
-                    "parameters": {"block": target.name},
                     "priority": 7,
                 })
+                attacks_planned += 1
 
         return actions
 
@@ -360,7 +367,7 @@ class AIDecisionEngine:
         if country.gold >= 150 and remaining_ap >= recruit_cost:
             recruit_blocks = [
                 b for b in my_blocks
-                if b.manpower_pool >= 20 and not b.recently_conquered
+                if b.manpower_pool >= 20 and not block.recently_conquered
                 and self.state.round - b.last_recruit_round >= 2
             ]
             if recruit_blocks:
@@ -371,11 +378,12 @@ class AIDecisionEngine:
                     "parameters": {"block": target.name},
                     "priority": 6,
                 })
+                remaining_ap -= recruit_cost
 
         if country.gold >= 300 and remaining_ap >= develop_cost:
             develop_blocks = [
                 b for b in my_blocks
-                if b.develop_count < 3 and b.supply_connected and not b.recently_conquered
+                if b.develop_count < 3 and b.supply_connected and not block.recently_conquered
             ]
             if develop_blocks:
                 target = max(develop_blocks, key=lambda b: b.base_manpower)
