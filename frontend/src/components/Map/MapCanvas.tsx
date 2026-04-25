@@ -35,8 +35,6 @@ const LAT_RANGE = MAX_LAT - MIN_LAT;
 const MIN_SCALE = 0.8;
 const MAX_SCALE = 3.0;
 const ZOOM_FACTOR = 1.05;
-const DRAG_THRESHOLD = 3;
-const HOVER_THROTTLE_MS = 30;
 const AGED_SPOTS_SEED = 42;
 
 function seededRandom(seed: number) {
@@ -77,8 +75,6 @@ export default function MapCanvas({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [lastOffset, setLastOffset] = useState({ x: 0, y: 0 });
-  const [hoveredBlock, setHoveredBlock] = useState<string | null>(null);
-  const [dragMoved, setDragMoved] = useState(false);
   
   const blockPathCacheRef = useRef<BlockPathCache[]>([]);
   const blockPathMapRef = useRef<Map<string, BlockPathCache>>(new Map());
@@ -88,12 +84,9 @@ export default function MapCanvas({
   const lastDrawnScaleRef = useRef(1);
   const animationFrameRef = useRef<number | null>(null);
   const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
-  const lastHoverTimeRef = useRef(0);
-  const dragMovedRef = useRef(false);
   
   offsetRef.current = offset;
   scaleRef.current = scale;
-  dragMovedRef.current = dragMoved;
 
   useEffect(() => {
     const handleResize = () => {
@@ -281,6 +274,7 @@ export default function MapCanvas({
     const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
     const scaleX = drawWidth / LON_RANGE;
     const scaleY = drawHeight / LAT_RANGE;
+    const invScale = 1 / Math.min(scaleX, scaleY);
     
     const pulsePhase = (Date.now() % 1500) / 1500;
     const pulseAlpha = 0.3 + Math.sin(pulsePhase * Math.PI * 2) * 0.2;
@@ -291,7 +285,6 @@ export default function MapCanvas({
     for (const blockCache of blockPathCacheRef.current) {
       const owner = blocksData[blockCache.name]?.owner || "neutral";
       const isSelected = selectedBlock === blockCache.name;
-      const isHovered = hoveredBlock === blockCache.name;
       const isCapital = capitals.has(blockCache.name);
       
       ctx.save();
@@ -301,28 +294,24 @@ export default function MapCanvas({
       
       const colorSet = COUNTRY_COLOR_SETS[owner] || COUNTRY_COLOR_SETS.neutral;
       
-      ctx.fillStyle = colorSet.fill + (isSelected ? "ff" : isHovered ? "ee" : "cc");
+      ctx.fillStyle = colorSet.fill + (isSelected ? "ff" : "cc");
       ctx.fill(blockCache.path);
       
       if (isSelected) {
         ctx.strokeStyle = "#FFD700";
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5 * invScale;
         ctx.shadowColor = "#FFD700";
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 8 * invScale;
         ctx.stroke(blockCache.path);
         
         ctx.strokeStyle = `rgba(255, 215, 0, ${pulseAlpha})`;
-        ctx.lineWidth = 5;
-        ctx.shadowBlur = 15;
+        ctx.lineWidth = 4 * invScale;
+        ctx.shadowBlur = 12 * invScale;
         ctx.stroke(blockCache.path);
         ctx.shadowBlur = 0;
-      } else if (isHovered) {
-        ctx.strokeStyle = "#b8a888";
-        ctx.lineWidth = 2;
-        ctx.stroke(blockCache.path);
       } else {
         ctx.strokeStyle = colorSet.stroke;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 0.8 * invScale;
         ctx.stroke(blockCache.path);
       }
       
@@ -385,7 +374,7 @@ export default function MapCanvas({
       
       ctx.restore();
     }
-  }, [geojson, blocksData, selectedBlock, hoveredBlock, canvasSize, lonLatToCanvas, capitals, getViewTransform]);
+  }, [geojson, blocksData, selectedBlock, canvasSize, lonLatToCanvas, capitals, getViewTransform]);
 
   const drawAnimations = useCallback(() => {
     const canvas = canvasRef.current;
@@ -579,10 +568,9 @@ export default function MapCanvas({
   }, [canvasToLonLat]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 0) {
+    if (e.button === 1) {
       e.preventDefault();
       setIsDragging(true);
-      setDragMoved(false);
       setDragStart({ x: e.clientX, y: e.clientY });
       setLastOffset({ ...offsetRef.current });
     }
@@ -592,25 +580,9 @@ export default function MapCanvas({
     if (isDragging) {
       const dx = e.clientX - dragStart.x;
       const dy = e.clientY - dragStart.y;
-      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
-        setDragMoved(true);
-      }
       setOffset({ x: lastOffset.x + dx, y: lastOffset.y + dy });
-    } else {
-      const now = Date.now();
-      if (now - lastHoverTimeRef.current < HOVER_THROTTLE_MS) return;
-      lastHoverTimeRef.current = now;
-
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      
-      const found = findBlockAtPoint(x, y);
-      setHoveredBlock(found);
     }
-  }, [isDragging, dragStart, lastOffset, findBlockAtPoint]);
+  }, [isDragging, dragStart, lastOffset]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -618,7 +590,6 @@ export default function MapCanvas({
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
-    if (dragMovedRef.current) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -684,7 +655,7 @@ export default function MapCanvas({
         style={{
           width: canvasSize.width,
           height: canvasSize.height,
-          cursor: isDragging ? "grabbing" : "pointer",
+          cursor: isDragging ? "grabbing" : "default",
           display: "block"
         }}
         onMouseDown={handleMouseDown}

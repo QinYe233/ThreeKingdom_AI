@@ -13,7 +13,6 @@ import type { Block, ThinkingRecord } from "./types/game";
 import {
 	  THEME_COLORS,
 	  COUNTRY_COLORS,
-	  SPEED_OPTIONS,
 	} from "./theme";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -33,7 +32,6 @@ const Header = memo(function Header({
   isThinking,
   isProcessing,
   autoPlay,
-  speed,
   showHistory,
   showSaveLoad,
   showDiplomacy,
@@ -44,7 +42,6 @@ const Header = memo(function Header({
   onToggleDiplomacy,
   onToggleChronicler,
   onToggleAutoPlay,
-  onChangeSpeed,
   onNextAction,
 }: {
   gameState: any;
@@ -52,7 +49,6 @@ const Header = memo(function Header({
   isThinking: boolean;
   isProcessing: boolean;
   autoPlay: boolean;
-  speed: number;
   showHistory: boolean;
   showSaveLoad: boolean;
   showDiplomacy: boolean;
@@ -63,7 +59,6 @@ const Header = memo(function Header({
   onToggleDiplomacy: () => void;
   onToggleChronicler: () => void;
   onToggleAutoPlay: () => void;
-  onChangeSpeed: (speed: number) => void;
   onNextAction: () => void;
 }) {
   return (
@@ -121,16 +116,6 @@ const Header = memo(function Header({
         >
           {autoPlay ? "停止" : "自动"}
         </button>
-        <select
-          value={speed}
-          onChange={(e) => onChangeSpeed(Number(e.target.value))}
-          className="px-2 py-1 rounded text-sm border"
-          style={{ backgroundColor: theme.sidebar, color: theme.text, borderColor: theme.border }}
-        >
-          {SPEED_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
         <button
           onClick={onNextAction}
           disabled={isProcessing || autoPlay}
@@ -247,7 +232,6 @@ export default function App() {
   const [blocksData, setBlocksData] = useState<Record<string, Block>>({});
   const [initLoading, setInitLoading] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
-  const [speed, setSpeed] = useState(3000);
   const [showSettings, setShowSettings] = useState(false);
   const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [showNoConfigWarning, setShowNoConfigWarning] = useState(false);
@@ -262,11 +246,9 @@ export default function App() {
   const [thinkingComplete, setThinkingComplete] = useState(false);
 
   const autoPlayRef = useRef(false);
-  const speedRef = useRef(speed);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   autoPlayRef.current = autoPlay;
-  speedRef.current = speed;
 
   const theme = THEME_COLORS;
 
@@ -452,7 +434,7 @@ export default function App() {
       if (autoPlayRef.current) {
         scheduleAutoPlay();
       }
-    }, speedRef.current);
+    }, 1000);
   }, [executeNextCountryStreaming, nextRound, generateAnimations, fetchBlocksData, fetchRelations]);
 
   useEffect(() => {
@@ -497,7 +479,6 @@ export default function App() {
         isThinking={isThinking}
         isProcessing={isProcessing}
         autoPlay={autoPlay}
-        speed={speed}
         showHistory={showHistory}
         showSaveLoad={showSaveLoad}
         showDiplomacy={showDiplomacy}
@@ -508,7 +489,6 @@ export default function App() {
         onToggleDiplomacy={() => setShowDiplomacy(prev => !prev)}
         onToggleChronicler={() => setShowChronicler(prev => !prev)}
         onToggleAutoPlay={() => setAutoPlay(prev => !prev)}
-        onChangeSpeed={setSpeed}
         onNextAction={handleNextAction}
       />
 
