@@ -2,7 +2,7 @@
 
 > AI 驱动的三国策略游戏 · 谋定天下，一统中原
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
 ![Python](https://img.shields.io/badge/Python-3.11+-green.svg)
 ![React](https://img.shields.io/badge/React-18-blue.svg)
 
@@ -24,18 +24,20 @@ chmod +x start.sh
 ./start.sh
 ```
 
-> 脚本自动检测环境并安装依赖，支持 Docker 和本地两种运行方式
+<br />
+
+> **脚本自动检测环境并安装依赖，支持 Docker 和本地两种运行方式**
 
 ## ⚙️ AI 配置
 
-游戏内点击「设置」→ 为魏蜀吴配置 AI 模型（支持 GPT-4、DeepSeek 等）
+游戏内点击「设置」→ 配置 AI 模型
 
 ## 🛠️ 技术栈
 
-| 前端 | 后端 | AI |
-|------|------|-----|
-| React 18 + TypeScript | FastAPI + Python 3.11 | 多 LLM 支持 |
-| Three.js 3D 地图 | 异步流式响应 | GPT-4 / DeepSeek / 自定义 |
+| 前端                    | 后端                    | AI                     |
+| --------------------- | --------------------- | ---------------------- |
+| React 18 + TypeScript | FastAPI + Python 3.11 | 多 LLM 支持               |
+| Three.js 3D 地图        | 异步流式响应                | GPT-4 / DeepSeek / 自定义 |
 
 ## 📦 部署方式
 
@@ -44,8 +46,14 @@ chmod +x start.sh
 
 ## 📄 许可证
 
-MIT License
+本项目采用 [CC BY-NC-SA 4.0](LICENSE) 协议开源。
 
----
+- ✅ **允许**：个人学习、研究、非商业用途、修改和分享
+- ❌ **禁止**：商业用途（未经作者书面许可）
+- 🔄 **要求**：衍生作品必须使用相同协议，并注明原作者
 
-<p align="center">🏆 天下大势，分久必合，合久必分</p>
+详见 [LICENSE](LICENSE) 文件。
+
+***
+
+**🏆 天下大势，分久必合，合久必分**

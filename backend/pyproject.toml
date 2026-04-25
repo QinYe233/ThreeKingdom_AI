@@ -1,7 +1,8 @@
 [project]
 name = "sanguo-backend"
-version = "0.1.0"
+version = "1.0.0"
 description = "AI三国演义后端服务"
+license = {text = "CC-BY-NC-SA-4.0"}
 requires-python = ">=3.11"
 
 [tool.ruff]
