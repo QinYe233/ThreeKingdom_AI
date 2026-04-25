@@ -9,8 +9,7 @@ import DiplomacyPanel from "./components/UI/DiplomacyPanel";
 import ChroniclerPanel from "./components/UI/ChroniclerPanel";
 import SaveLoadPanel from "./components/UI/SaveLoadPanel";
 import { useGameStore } from "./stores/gameStore";
-import type { Block } from "./types/game";
-import type { ThinkingRecord } from "./theme";
+import type { Block, ThinkingRecord } from "./types/game";
 import {
 	  THEME_COLORS,
 	  COUNTRY_COLORS,

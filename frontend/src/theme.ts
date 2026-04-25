@@ -214,11 +214,3 @@ export const getOrderMoraleColor = (value: number) => {
   if (value >= 30) return "#d97706";
   return "#c53030";
 };
-
-export interface ThinkingRecord {
-  round: number;
-  country: string;
-  thinking: string;
-  content: string;
-  actions: string[];
-}

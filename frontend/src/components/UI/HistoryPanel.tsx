@@ -1,5 +1,6 @@
 import { memo, useRef, useEffect } from "react";
-import type { ThemeColors, ThinkingRecord } from "../../theme";
+import type { ThemeColors } from "../../theme";
+import type { ThinkingRecord } from "../../types/game";
 import { COUNTRY_COLORS } from "../../theme";
 
 interface HistoryPanelProps {

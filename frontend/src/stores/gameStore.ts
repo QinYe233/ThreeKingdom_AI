@@ -1,5 +1,5 @@
 import { create, createSelector } from "zustand";
-import type { GameState, Country, Block, General, Relation, Narrative, BattleResult } from "../types/game";
+import type { GameState, Country, Block, General, Relation, Narrative, BattleResult, ThinkingRecord } from "../types/game";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
@@ -8,14 +8,6 @@ interface AIResult {
   goal: string;
   actions_executed: number;
   results: any[];
-}
-
-interface ThinkingRecord {
-  round: number;
-  country: string;
-  thinking: string;
-  content: string;
-  actions: string[];
 }
 
 interface GameStore {
