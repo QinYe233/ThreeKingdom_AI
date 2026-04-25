@@ -30,7 +30,6 @@ interface MapCanvasProps {
   countriesData?: Record<string, any>;
   selectedBlock: string | null;
   onSelectBlock: (name: string) => void;
-  theme?: MapTheme;
   animations?: MapAnimation[];
 }
 
@@ -313,7 +312,7 @@ export default function MapCanvas({
       ctx.stroke();
       ctx.restore();
     }
-  }, [geojson, blocksData, selectedBlock, hoveredBlock, theme, canvasSize, lonLatToCanvas, capitals, getViewTransform, offset, scale]);
+  }, [geojson, blocksData, selectedBlock, hoveredBlock, canvasSize, lonLatToCanvas, capitals, getViewTransform, offset, scale]);
 
   const drawAnimations = useCallback(() => {
     const canvas = canvasRef.current;
