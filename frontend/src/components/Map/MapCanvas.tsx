@@ -494,21 +494,12 @@ export default function MapCanvas({
         lon >= bounds.minLon && lon <= bounds.maxLon &&
         lat >= bounds.minLat && lat <= bounds.maxLat
       ) {
-        const ctx = canvasRef.current?.getContext("2d");
-        if (ctx) {
-          ctx.save();
-          ctx.translate(offsetX, offsetY);
-          ctx.scale(scaleX, -scaleY);
-          ctx.translate(-MIN_LON, -MAX_LAT);
+        // Both point and path are in lon/lat coordinates, no transforms needed
+        const isInPath = blockCache.path.isPointInPath(lon, lat);
 
-          const isInPath = ctx.isPointInPath(blockCache.path, lon, lat);
-
-          ctx.restore();
-
-          if (isInPath) {
-            console.log("Found matching block:", blockCache.name);
-            return blockCache.name;
-          }
+        if (isInPath) {
+          console.log("Found matching block:", blockCache.name);
+          return blockCache.name;
         }
       }
     }
