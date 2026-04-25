@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { THEME_COLORS, MAP_COLORS } from "../../theme";
+import { MAP_COLORS } from "../../theme";
 
 const COUNTRY_COLORS: Record<string, { fill: string; stroke: string; star: string }> = {
   "魏": { fill: "#4a6fa5", stroke: "#3d5a80", star: "#6b8fc7" },
@@ -47,6 +47,9 @@ const LAT_RANGE = MAX_LAT - MIN_LAT;
 const MIN_SCALE = 0.8;
 const MAX_SCALE = 3.0;
 const ZOOM_FACTOR = 1.05;
+const DRAG_THRESHOLD = 3;
+const HOVER_THROTTLE_MS = 30;
+const AGED_SPOTS_SEED = 42;
 
 function seededRandom(seed: number) {
   let s = seed;
@@ -54,6 +57,20 @@ function seededRandom(seed: number) {
     s = (s * 16807 + 0) % 2147483647;
     return (s - 1) / 2147483646;
   };
+}
+
+function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
 }
 
 export default function MapCanvas({
@@ -76,14 +93,19 @@ export default function MapCanvas({
   const [dragMoved, setDragMoved] = useState(false);
   
   const blockPathCacheRef = useRef<BlockPathCache[]>([]);
+  const blockPathMapRef = useRef<Map<string, BlockPathCache>>(new Map());
   const offsetRef = useRef(offset);
   const scaleRef = useRef(scale);
   const lastDrawnOffsetRef = useRef({ x: 0, y: 0 });
   const lastDrawnScaleRef = useRef(1);
   const animationFrameRef = useRef<number | null>(null);
+  const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
+  const lastHoverTimeRef = useRef(0);
+  const dragMovedRef = useRef(false);
   
   offsetRef.current = offset;
   scaleRef.current = scale;
+  dragMovedRef.current = dragMoved;
 
   useEffect(() => {
     const handleResize = () => {
@@ -135,6 +157,7 @@ export default function MapCanvas({
     if (!geojson || !geojson.features) return;
     
     const cache: BlockPathCache[] = [];
+    const map = new Map<string, BlockPathCache>();
     
     for (const feature of geojson.features) {
       const name = feature.properties?.label || "";
@@ -188,16 +211,19 @@ export default function MapCanvas({
         }
         path.closePath();
         
-        cache.push({
+        const entry: BlockPathCache = {
           name,
           path,
           centerLonLat: { lon: centerLon / pointCount, lat: centerLat / pointCount },
           bounds: { minLon, maxLon, minLat, maxLat },
-        });
+        };
+        cache.push(entry);
+        map.set(name, entry);
       }
     }
     
     blockPathCacheRef.current = cache;
+    blockPathMapRef.current = map;
   }, [geojson]);
 
   const capitals = useMemo(() => {
@@ -205,6 +231,16 @@ export default function MapCanvas({
     if (countriesData) {
       Object.entries(countriesData).forEach(([countryName, country]: [string, any]) => {
         if (country.capital) map.set(country.capital, countryName);
+      });
+    }
+    return map;
+  }, [countriesData]);
+
+  const countryToCapital = useMemo(() => {
+    const map = new Map<string, string>();
+    if (countriesData) {
+      Object.entries(countriesData).forEach(([countryName, country]: [string, any]) => {
+        if (country.capital) map.set(countryName, country.capital);
       });
     }
     return map;
@@ -230,14 +266,21 @@ export default function MapCanvas({
     lastDrawnScaleRef.current = scaleRef.current;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvasSize.width * dpr;
-    canvas.height = canvasSize.height * dpr;
+    const sizeChanged = 
+      lastCanvasSizeRef.current.width !== canvasSize.width ||
+      lastCanvasSizeRef.current.height !== canvasSize.height;
+    
+    if (sizeChanged) {
+      canvas.width = canvasSize.width * dpr;
+      canvas.height = canvasSize.height * dpr;
+      lastCanvasSizeRef.current = { width: canvasSize.width, height: canvasSize.height };
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     ctx.fillStyle = MAP_COLORS.base;
     ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
 
-    const rng = seededRandom(Math.floor(Math.random() * 100000));
+    const rng = seededRandom(AGED_SPOTS_SEED);
     for (let i = 0; i < 30; i++) {
       ctx.fillStyle = MAP_COLORS.agedSpots;
       ctx.beginPath();
@@ -250,14 +293,17 @@ export default function MapCanvas({
     const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
     const scaleX = drawWidth / LON_RANGE;
     const scaleY = drawHeight / LAT_RANGE;
+    const invMinScale = 1 / Math.min(scaleX, scaleY);
     
     const pulsePhase = (Date.now() % 1500) / 1500;
     const pulseAlpha = 0.3 + Math.sin(pulsePhase * Math.PI * 2) * 0.2;
+    const starSize = 8 * scaleRef.current;
 
     for (const blockCache of blockPathCacheRef.current) {
       const owner = blocksData[blockCache.name]?.owner || "neutral";
       const isSelected = selectedBlock === blockCache.name;
       const isHovered = hoveredBlock === blockCache.name;
+      const isCapital = capitals.has(blockCache.name);
       
       ctx.save();
       ctx.translate(offsetX, offsetY);
@@ -271,36 +317,30 @@ export default function MapCanvas({
       
       if (isSelected) {
         ctx.strokeStyle = "#FFD700";
-        ctx.lineWidth = 4 / Math.min(scaleX, scaleY);
+        ctx.lineWidth = 4 * invMinScale;
         ctx.shadowColor = "#FFD700";
-        ctx.shadowBlur = 15 / Math.min(scaleX, scaleY);
+        ctx.shadowBlur = 15 * invMinScale;
         ctx.stroke(blockCache.path);
         
         ctx.strokeStyle = `rgba(255, 215, 0, ${pulseAlpha})`;
-        ctx.lineWidth = 6 / Math.min(scaleX, scaleY);
-        ctx.shadowBlur = 20 / Math.min(scaleX, scaleY);
+        ctx.lineWidth = 6 * invMinScale;
+        ctx.shadowBlur = 20 * invMinScale;
         ctx.stroke(blockCache.path);
         ctx.shadowBlur = 0;
       } else if (isHovered) {
         ctx.strokeStyle = "#b8a888";
-        ctx.lineWidth = 2.5 / Math.min(scaleX, scaleY);
+        ctx.lineWidth = 2.5 * invMinScale;
         ctx.stroke(blockCache.path);
       } else {
         ctx.strokeStyle = colorSet.stroke;
-        ctx.lineWidth = 1 / Math.min(scaleX, scaleY);
+        ctx.lineWidth = invMinScale;
         ctx.stroke(blockCache.path);
       }
       
       ctx.restore();
-    }
 
-    for (const blockCache of blockPathCacheRef.current) {
-      const isSelected = selectedBlock === blockCache.name;
-      
       if (isSelected) {
         const center = lonLatToCanvas(blockCache.centerLonLat.lon, blockCache.centerLonLat.lat);
-        const owner = blocksData[blockCache.name]?.owner || "neutral";
-        const colorSet = COUNTRY_COLORS[owner] || COUNTRY_COLORS.neutral;
         
         ctx.save();
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -315,8 +355,7 @@ export default function MapCanvas({
         const labelY = center.y - labelHeight / 2;
         
         ctx.fillStyle = "rgba(61, 43, 31, 0.9)";
-        ctx.beginPath();
-        ctx.roundRect(labelX, labelY, textWidth + padding * 2, labelHeight, 4);
+        drawRoundRect(ctx, labelX, labelY, textWidth + padding * 2, labelHeight, 4);
         ctx.fill();
         
         ctx.strokeStyle = "#FFD700";
@@ -330,40 +369,34 @@ export default function MapCanvas({
         
         ctx.restore();
       }
-    }
 
-    for (const blockCache of blockPathCacheRef.current) {
-      const countryName = capitals.get(blockCache.name);
-      if (!countryName) continue;
-      
-      const center = lonLatToCanvas(blockCache.centerLonLat.lon, blockCache.centerLonLat.lat);
-      const owner = blocksData[blockCache.name]?.owner || "neutral";
-      const colorSet = COUNTRY_COLORS[owner] || COUNTRY_COLORS.neutral;
-      const starSize = Math.max(6, Math.min(12, 8)) * scaleRef.current;
+      if (isCapital) {
+        const center = lonLatToCanvas(blockCache.centerLonLat.lon, blockCache.centerLonLat.lat);
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.translate(center.x, center.y);
-      for (let i = 0; i < 10; i++) {
-        const radius = i % 2 === 0 ? starSize : starSize * 0.4;
-        const angle = (Math.PI / 5) * i - Math.PI / 2;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        ctx.save();
+        ctx.beginPath();
+        ctx.translate(center.x, center.y);
+        for (let i = 0; i < 10; i++) {
+          const radius = i % 2 === 0 ? starSize : starSize * 0.4;
+          const angle = (Math.PI / 5) * i - Math.PI / 2;
+          const x = Math.cos(angle) * radius;
+          const y = Math.sin(angle) * radius;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = colorSet.star;
+        ctx.shadowColor = colorSet.star;
+        ctx.shadowBlur = 4;
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 0.5;
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+        ctx.restore();
       }
-      ctx.closePath();
-      ctx.fillStyle = colorSet.star;
-      ctx.shadowColor = colorSet.star;
-      ctx.shadowBlur = 4;
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 0.5;
-      ctx.shadowBlur = 0;
-      ctx.stroke();
-      ctx.restore();
     }
-  }, [geojson, blocksData, selectedBlock, hoveredBlock, canvasSize, lonLatToCanvas, capitals, getViewTransform, offset, scale]);
+  }, [geojson, blocksData, selectedBlock, hoveredBlock, canvasSize, lonLatToCanvas, capitals, getViewTransform]);
 
   const drawAnimations = useCallback(() => {
     const canvas = canvasRef.current;
@@ -375,6 +408,7 @@ export default function MapCanvas({
     const dpr = window.devicePixelRatio || 1;
     const now = Date.now();
     let hasActiveAnimations = false;
+    const blockMap = blockPathMapRef.current;
 
     for (const anim of animations) {
       const elapsed = now - anim.timestamp;
@@ -384,7 +418,7 @@ export default function MapCanvas({
       const progress = elapsed / ANIMATION_DURATION;
 
       if (anim.type === "recruit" && anim.block) {
-        const block = blockPathCacheRef.current.find(b => b.name === anim.block);
+        const block = blockMap.get(anim.block);
         if (block) {
           const center = lonLatToCanvas(block.centerLonLat.lon, block.centerLonLat.lat);
           const alpha = progress < 0.7 ? 1 : 1 - (progress - 0.7) / 0.3;
@@ -401,8 +435,8 @@ export default function MapCanvas({
           ctx.restore();
         }
       } else if (anim.type === "attack" && anim.from && anim.to) {
-        const fromBlock = blockPathCacheRef.current.find(b => b.name === anim.from);
-        const toBlock = blockPathCacheRef.current.find(b => b.name === anim.to);
+        const fromBlock = blockMap.get(anim.from);
+        const toBlock = blockMap.get(anim.to);
         if (fromBlock && toBlock) {
           const from = lonLatToCanvas(fromBlock.centerLonLat.lon, fromBlock.centerLonLat.lat);
           const to = lonLatToCanvas(toBlock.centerLonLat.lon, toBlock.centerLonLat.lat);
@@ -454,14 +488,9 @@ export default function MapCanvas({
           }
         }
       } else if (anim.type === "tax" && anim.country) {
-        let countryCapital: string | undefined;
-        capitals.forEach((countryName, capitalName) => {
-          if (countryName === anim.country) {
-            countryCapital = capitalName;
-          }
-        });
-        if (countryCapital) {
-          const block = blockPathCacheRef.current.find(b => b.name === countryCapital);
+        const capitalName = countryToCapital.get(anim.country);
+        if (capitalName) {
+          const block = blockMap.get(capitalName);
           if (block) {
             const center = lonLatToCanvas(block.centerLonLat.lon, block.centerLonLat.lat);
             const alpha = progress < 0.7 ? 1 : 1 - (progress - 0.7) / 0.3;
@@ -479,7 +508,7 @@ export default function MapCanvas({
           }
         }
       } else if (anim.type === "develop" && anim.block) {
-        const block = blockPathCacheRef.current.find(b => b.name === anim.block);
+        const block = blockMap.get(anim.block);
         if (block) {
           const center = lonLatToCanvas(block.centerLonLat.lon, block.centerLonLat.lat);
           const alpha = progress < 0.7 ? 1 : 1 - (progress - 0.7) / 0.3;
@@ -499,7 +528,7 @@ export default function MapCanvas({
     }
 
     return hasActiveAnimations;
-  }, [animations, lonLatToCanvas, capitals]);
+  }, [animations, lonLatToCanvas, countryToCapital]);
 
   useEffect(() => {
     if (animationFrameRef.current) {
@@ -537,12 +566,7 @@ export default function MapCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
-    const scaleX = drawWidth / LON_RANGE;
-    const scaleY = drawHeight / LAT_RANGE;
-
-    const lon = (x - offsetX) / scaleX + MIN_LON;
-    const lat = MAX_LAT - (y - offsetY) / scaleY;
+    const { lon, lat } = canvasToLonLat(x, y);
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -563,10 +587,10 @@ export default function MapCanvas({
     }
     ctx.restore();
     return null;
-  }, [getViewTransform]);
+  }, [canvasToLonLat]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 1) {
+    if (e.button === 0 || e.button === 1) {
       e.preventDefault();
       setIsDragging(true);
       setDragMoved(false);
@@ -579,11 +603,15 @@ export default function MapCanvas({
     if (isDragging) {
       const dx = e.clientX - dragStart.x;
       const dy = e.clientY - dragStart.y;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
         setDragMoved(true);
       }
       setOffset({ x: lastOffset.x + dx, y: lastOffset.y + dy });
     } else {
+      const now = Date.now();
+      if (now - lastHoverTimeRef.current < HOVER_THROTTLE_MS) return;
+      lastHoverTimeRef.current = now;
+
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -600,14 +628,11 @@ export default function MapCanvas({
   }, []);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) {
-      return;
-    }
+    if (e.button !== 0) return;
+    if (dragMovedRef.current) return;
 
     const canvas = canvasRef.current;
-    if (!canvas) {
-      return;
-    }
+    if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
