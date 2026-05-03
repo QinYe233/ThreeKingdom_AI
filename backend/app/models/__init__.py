@@ -64,7 +64,9 @@ class Country(BaseModel):
     risk_preference: float = 0.5
     is_defeated: bool = False
     last_betrayal_round: int = -10
+    last_move_capital_round: int = -100
     action_points: float = 6.0
+    war_pressure: int = 0
 
 
 class Relation(BaseModel):

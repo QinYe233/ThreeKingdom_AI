@@ -1,4 +1,4 @@
-from ..models import Block, Country, GameState
+from ..models import Block, Country, GameState, BlockSpecialization
 from ..core.constants import GAME_CONSTANTS
 
 
@@ -24,7 +24,7 @@ class EconomySystem:
 
             block_gold = int(block.base_manpower * dynamic_coeff * order_mod)
 
-            if block.specialization == "trade":
+            if block.specialization == BlockSpecialization.TRADE:
                 trade_mult = 1.5 if block.geographic_trait.value == "trade" else 1.3
                 block_gold = int(block_gold * trade_mult)
 
@@ -85,7 +85,7 @@ class EconomySystem:
         if spec not in valid_specs:
             return {"error": f"Invalid specialization. Must be one of: {valid_specs}"}
 
-        block.specialization = spec
+        block.specialization = BlockSpecialization(spec)
 
         bonus = {}
         if spec == "farming":

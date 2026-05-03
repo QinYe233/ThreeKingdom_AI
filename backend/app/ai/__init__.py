@@ -1,4 +1,4 @@
-from .config import AIModelConfig, AIProvider, AI_ROLES, ROLE_NAMES, ROLE_DESCRIPTIONS, SYSTEM_PROMPTS
+from .config import AIModelConfig, AI_ROLES, ROLE_NAMES, ROLE_DESCRIPTIONS, SYSTEM_PROMPTS
 from .client import AIClient, config_manager
 from .decision import AIDecisionEngine
 
@@ -11,7 +11,6 @@ get_config_status = config_manager.get_config_status
 
 __all__ = [
     "AIModelConfig",
-    "AIProvider",
     "AI_ROLES",
     "ROLE_NAMES",
     "ROLE_DESCRIPTIONS",

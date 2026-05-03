@@ -1,12 +1,11 @@
 import type { Block } from "../../types/game";
-import { COUNTRY_COLORS, OWNER_NAMES } from "../../theme";
+import { COUNTRY_COLORS, OWNER_NAMES, getOrderMoraleColor, SPECIALIZATION_LABELS } from "../../theme";
 
 interface BlockInfoProps {
   block: Block | null;
-  selectedCountry: string | null;
 }
 
-export default function BlockInfo({ block, selectedCountry }: BlockInfoProps) {
+export default function BlockInfo({ block }: BlockInfoProps) {
   if (!block) {
     return (
       <div className="p-4 text-center font-body text-sm" style={{ color: "#6b7280" }}>
@@ -40,15 +39,11 @@ export default function BlockInfo({ block, selectedCountry }: BlockInfoProps) {
         </div>
         <div className="p-2 rounded" style={{ backgroundColor: "rgba(0,0,0,0.15)" }}>
           <div style={{ color: "#6b7280" }}>秩序</div>
-          <div className="font-bold text-sm" style={{ color: block.order >= 60 ? "#16a34a" : block.order >= 30 ? "#ca8a04" : "#dc2626" }}>
-            {block.order}
-          </div>
+          <div className="font-bold text-sm" style={{ color: getOrderMoraleColor(block.order) }}>{block.order}</div>
         </div>
         <div className="p-2 rounded" style={{ backgroundColor: "rgba(0,0,0,0.15)" }}>
           <div style={{ color: "#6b7280" }}>士气</div>
-          <div className="font-bold text-sm" style={{ color: block.morale >= 60 ? "#16a34a" : block.morale >= 30 ? "#ca8a04" : "#dc2626" }}>
-            {block.morale}
-          </div>
+          <div className="font-bold text-sm" style={{ color: getOrderMoraleColor(block.morale) }}>{block.morale}</div>
         </div>
       </div>
 
@@ -64,7 +59,7 @@ export default function BlockInfo({ block, selectedCountry }: BlockInfoProps) {
         )}
         {block.geographic_trait !== "none" && (
           <span className="px-2 py-0.5 rounded bg-purple-800/50 text-purple-200">
-            {block.geographic_trait === "farming" ? "农垦" : block.geographic_trait === "trade" ? "商贸" : "堡垒"}
+            {SPECIALIZATION_LABELS[block.geographic_trait] || block.geographic_trait}
           </span>
         )}
       </div>

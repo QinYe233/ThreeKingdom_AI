@@ -1,4 +1,5 @@
 import uuid
+import random
 from datetime import datetime
 from typing import Optional
 
@@ -94,7 +95,7 @@ class DiplomacySystem:
         return events
 
     def _form_alliance(self, state: GameState, country_a: str, country_b: str) -> Optional[dict]:
-        key = self._get_relation_key(country_a, country_b)
+        key = self.get_relation_key(country_a, country_b)
         relation = state.relations.get(key)
         if not relation:
             return None
@@ -115,14 +116,14 @@ class DiplomacySystem:
         }
 
     def _break_alliance(self, state: GameState, country_a: str, country_b: str) -> None:
-        key = self._get_relation_key(country_a, country_b)
+        key = self.get_relation_key(country_a, country_b)
         relation = state.relations.get(key)
         if relation and relation.is_allied:
             relation.is_allied = False
             relation.trust = max(0, relation.trust - 0.1)
 
     def process_betrayal(self, state: GameState, attacker: str, defender: str) -> dict:
-        key = self._get_relation_key(attacker, defender)
+        key = self.get_relation_key(attacker, defender)
         relation = state.relations.get(key)
         if not relation:
             return {"error": "No relation found"}
@@ -148,10 +149,10 @@ class DiplomacySystem:
         }
 
     def process_attack_declaration(self, state: GameState, attacker: str, defender: str) -> dict:
-        key = self._get_relation_key(attacker, defender)
+        key = self.get_relation_key(attacker, defender)
         relation = state.relations.get(key)
         if not relation:
-            key = self._get_relation_key(attacker, defender)
+            key = self.get_relation_key(attacker, defender)
             relation = Relation(country_a=attacker, country_b=defender)
             state.relations[key] = relation
 
@@ -172,7 +173,7 @@ class DiplomacySystem:
         }
 
     def process_truce(self, state: GameState, country_a: str, country_b: str) -> dict:
-        key = self._get_relation_key(country_a, country_b)
+        key = self.get_relation_key(country_a, country_b)
         relation = state.relations.get(key)
         if not relation:
             return {"error": "No relation found"}
@@ -237,7 +238,6 @@ class DiplomacySystem:
             bonus = int((wu_country.order - 70) / 10) * 0.05
             base_prob = min(0.8, base_prob + bonus)
 
-        import random
         if random.random() < base_prob:
             for block in shi_xie_blocks:
                 block.owner = "吴"
@@ -271,6 +271,6 @@ class DiplomacySystem:
         )
         cm.memories.append(memory)
 
-    def _get_relation_key(self, country_a: str, country_b: str) -> str:
+    def get_relation_key(self, country_a: str, country_b: str) -> str:
         pair = sorted([country_a, country_b])
         return f"{pair[0]}-{pair[1]}"

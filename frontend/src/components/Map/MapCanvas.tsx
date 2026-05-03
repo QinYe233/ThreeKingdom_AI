@@ -605,48 +605,91 @@ export default function MapCanvas({
     }
   }, [findBlockAtPoint, onSelectBlock]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (isDragging) return;
-    
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    const { lon, lat } = canvasToLonLat(mouseX, mouseY);
-    
-    const delta = e.deltaY > 0 ? 1 / ZOOM_FACTOR : ZOOM_FACTOR;
-    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scaleRef.current * delta));
-    
-    const aspectRatio = LON_RANGE / LAT_RANGE;
-    const canvasAspect = canvasSize.width / canvasSize.height;
-    
-    let newDrawWidth: number, newDrawHeight: number, newOffsetX: number, newOffsetY: number;
-    
-    if (canvasAspect > aspectRatio) {
-      newDrawHeight = canvasSize.height * newScale;
-      newDrawWidth = newDrawHeight * aspectRatio;
-      newOffsetX = mouseX - ((lon - MIN_LON) / LON_RANGE) * newDrawWidth - (canvasSize.width - newDrawWidth) / 2;
-      newOffsetY = mouseY - ((MAX_LAT - lat) / LAT_RANGE) * newDrawHeight;
-    } else {
-      newDrawWidth = canvasSize.width * newScale;
-      newDrawHeight = newDrawWidth / aspectRatio;
-      newOffsetX = mouseX - ((lon - MIN_LON) / LON_RANGE) * newDrawWidth;
-      newOffsetY = mouseY - ((MAX_LAT - lat) / LAT_RANGE) * newDrawHeight - (canvasSize.height - newDrawHeight) / 2;
-    }
-    
-    setScale(newScale);
-    setOffset({ x: newOffsetX, y: newOffsetY });
-  }, [canvasSize, canvasToLonLat, isDragging]);
-
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
   }, []);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (isDragging) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const { lon, lat } = canvasToLonLat(mouseX, mouseY);
+
+      const delta = e.deltaY > 0 ? 1 / ZOOM_FACTOR : ZOOM_FACTOR;
+      const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scaleRef.current * delta));
+
+      const aspectRatio = LON_RANGE / LAT_RANGE;
+      const canvasAspect = canvasSize.width / canvasSize.height;
+
+      let newDrawWidth: number, newDrawHeight: number, newOffsetX: number, newOffsetY: number;
+
+      if (canvasAspect > aspectRatio) {
+        newDrawHeight = canvasSize.height * newScale;
+        newDrawWidth = newDrawHeight * aspectRatio;
+        newOffsetX = mouseX - ((lon - MIN_LON) / LON_RANGE) * newDrawWidth - (canvasSize.width - newDrawWidth) / 2;
+        newOffsetY = mouseY - ((MAX_LAT - lat) / LAT_RANGE) * newDrawHeight;
+      } else {
+        newDrawWidth = canvasSize.width * newScale;
+        newDrawHeight = newDrawWidth / aspectRatio;
+        newOffsetX = mouseX - ((lon - MIN_LON) / LON_RANGE) * newDrawWidth;
+        newOffsetY = mouseY - ((MAX_LAT - lat) / LAT_RANGE) * newDrawHeight - (canvasSize.height - newDrawHeight) / 2;
+      }
+
+      setScale(newScale);
+      setOffset({ x: newOffsetX, y: newOffsetY });
+    };
+
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, [canvasSize, canvasToLonLat, isDragging]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        setIsDragging(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+        setLastOffset({ ...offsetRef.current });
+      }
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        setOffset({ x: lastOffset.x + dx, y: lastOffset.y + dy });
+      }
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    canvas.addEventListener("mousedown", onMouseDown);
+    canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseup", onMouseUp);
+    canvas.addEventListener("mouseleave", onMouseUp);
+
+    return () => {
+      canvas.removeEventListener("mousedown", onMouseDown);
+      canvas.removeEventListener("mousemove", onMouseMove);
+      canvas.removeEventListener("mouseup", onMouseUp);
+      canvas.removeEventListener("mouseleave", onMouseUp);
+    };
+  }, [isDragging, dragStart, lastOffset]);
 
   return (
     <div ref={containerRef} className="w-full h-full">
@@ -658,12 +701,7 @@ export default function MapCanvas({
           cursor: isDragging ? "grabbing" : "default",
           display: "block"
         }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         onClick={handleClick}
-        onWheel={handleWheel}
         onContextMenu={handleContextMenu}
       />
     </div>

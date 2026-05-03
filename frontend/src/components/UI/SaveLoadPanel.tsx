@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ThemeColors } from "../../theme";
+import { saveApi } from "../../utils/api";
 
 interface SaveInfo {
   save_id: string;
@@ -18,8 +19,6 @@ interface SaveLoadPanelProps {
   onClose: () => void;
   theme: ThemeColors;
 }
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
 const SaveLoadPanel = function SaveLoadPanel({
   show,
@@ -42,8 +41,7 @@ const SaveLoadPanel = function SaveLoadPanel({
   const fetchSaves = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/save/list`);
-      const data = await res.json();
+      const data: any = await saveApi.list();
       setSaves(data);
     } catch (e) {
       console.error("Failed to fetch saves:", e);
@@ -58,15 +56,10 @@ const SaveLoadPanel = function SaveLoadPanel({
       setLoading(true);
       setSaveMessage("");
 
-      const res = await fetch(`${API_BASE}/save/manual`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: saveDescription || undefined,
-          description: saveDescription || undefined
-        }),
+      const data: any = await saveApi.manual({
+        name: saveDescription || undefined,
+        description: saveDescription || undefined
       });
-      const data = await res.json();
 
       if (data.success) {
         setSaveMessage("存档创建成功！");
@@ -88,10 +81,7 @@ const SaveLoadPanel = function SaveLoadPanel({
       setLoading(true);
       setSaveMessage("");
 
-      const res = await fetch(`${API_BASE}/save/load/${saveId}`, {
-        method: "POST"
-      });
-      const data = await res.json();
+      const data: any = await saveApi.load(saveId);
 
       if (data.success) {
         setSaveMessage("存档加载成功，页面将重新加载...");
@@ -114,10 +104,7 @@ const SaveLoadPanel = function SaveLoadPanel({
       setLoading(true);
       setSaveMessage("");
 
-      const res = await fetch(`${API_BASE}/save/${saveId}`, {
-        method: "DELETE"
-      });
-      const data = await res.json();
+      const data: any = await saveApi.delete(saveId);
 
       if (data.deleted) {
         setSaveMessage("存档删除成功");
@@ -157,7 +144,6 @@ const SaveLoadPanel = function SaveLoadPanel({
         border: `2px solid ${theme.border}`,
         boxShadow: "0 8px 24px rgba(61, 43, 31, 0.3)"
       }}>
-        {/* Header */}
         <div className="flex items-center justify-between mb-6 pb-4 border-b-2"
           style={{ borderColor: theme.border }}
         >
@@ -173,7 +159,6 @@ const SaveLoadPanel = function SaveLoadPanel({
           </button>
         </div>
 
-        {/* Save Message */}
         {saveMessage && (
           <div className="mb-4 p-3 rounded"
             style={{
@@ -186,7 +171,6 @@ const SaveLoadPanel = function SaveLoadPanel({
           </div>
         )}
 
-        {/* Manual Save */}
         <div className="mb-6">
           <div className="text-sm mb-2" style={{ color: theme.textMuted }}>
             手动存档
@@ -216,7 +200,6 @@ const SaveLoadPanel = function SaveLoadPanel({
           </div>
         </div>
 
-        {/* Save List */}
         <div className="flex-1 overflow-y-auto" style={{ maxHeight: "300px" }}>
           {loading ? (
             <div className="text-center py-8" style={{ color: theme.textMuted }}>
@@ -296,7 +279,6 @@ const SaveLoadPanel = function SaveLoadPanel({
           )}
         </div>
 
-        {/* Delete Confirmation */}
         {showDeleteConfirm && selectedSave && (
           <div className="mt-4 p-3 rounded"
             style={{ backgroundColor: theme.error + "20", border: `1px solid ${theme.error}` }}

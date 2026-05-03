@@ -1,7 +1,8 @@
+import random
 from typing import Optional
 
 from ..models import (
-    GameState, Block, BlockVisibility, WinRateLabel, Country,
+    GameState, Block, BlockVisibility, WinRateLabel,
 )
 from ..core.constants import GAME_CONSTANTS
 
@@ -132,7 +133,6 @@ class FogSystem:
         return vis
 
     def _estimate_garrison(self, actual: int) -> int:
-        import random
         estimate = int(actual * 0.8)
         noise = int(estimate * random.uniform(-0.1, 0.1))
         return max(0, estimate + noise)

@@ -1,142 +1,162 @@
-import { memo, useRef, useEffect } from "react";
+import { memo, useRef, useEffect, useState, useMemo } from "react";
 import type { ThemeColors } from "../../theme";
-import { COUNTRY_COLORS } from "../../theme";
+import { COUNTRY_COLORS, FONTS } from "../../theme";
 
 interface ThinkingChainProps {
   currentRound: number;
   currentActingCountry: string;
+  pendingCountrySwitch: boolean;
+  completedCountryName: string | null;
   isThinking: boolean;
   isProcessing: boolean;
-  thinkingComplete: boolean;
   currentThinking: string;
   currentContent: string;
-  currentActions: string[];
+  currentActions: any[];
   currentRecord: any;
   theme: ThemeColors;
-  pendingCountrySwitch?: boolean;
-  completedCountryName?: string | null;
 }
 
 const ThinkingChain = memo(function ThinkingChain({
   currentRound,
   currentActingCountry,
+  pendingCountrySwitch,
+  completedCountryName,
   isThinking,
   isProcessing,
-  thinkingComplete,
   currentThinking,
   currentContent,
   currentActions,
   currentRecord,
   theme,
-  pendingCountrySwitch,
-  completedCountryName
 }: ThinkingChainProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const lastContentLengthRef = useRef(0);
+
+  const displayContent = useMemo(() => {
+    if (!currentContent) return "";
+    return currentContent;
+  }, [currentContent]);
+
+  const displayThinking = useMemo(() => {
+    if (!currentThinking) return "";
+    return currentThinking;
+  }, [currentThinking]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (autoScroll && scrollRef.current) {
+      const el = scrollRef.current;
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      if (isNearBottom || currentContent.length !== lastContentLengthRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
     }
-  }, [currentThinking, currentContent, currentActions]);
+    lastContentLengthRef.current = currentContent.length;
+  }, [currentContent, currentThinking, autoScroll]);
 
-  const displayCountry = pendingCountrySwitch ? (completedCountryName || currentActingCountry) : currentActingCountry;
-  const isDecisionComplete = thinkingComplete || pendingCountrySwitch;
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const el = scrollRef.current;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAutoScroll(isNearBottom);
+  };
+
+  const isWorking = isThinking || isProcessing;
+  const isDone = pendingCountrySwitch && !isThinking && !isProcessing;
+  const countryColor = COUNTRY_COLORS[currentActingCountry] || theme.accent;
 
   return (
-    <div className="h-full flex flex-col" style={{ backgroundColor: theme.sidebar, borderRight: `1px solid ${theme.border}` }}>
-      <div className="p-3 border-b" style={{ borderColor: theme.border }}>
-        <div className="text-sm font-subtitle font-bold" style={{ color: theme.text }}>策略思考链</div>
-        <div className="text-xs mt-1 font-body" style={{ color: theme.textMuted }}>实时观察AI决策过程</div>
+    <div className="flex flex-col h-full" style={{ backgroundColor: theme.sidebar }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: theme.border }}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-subtitle font-bold" style={{ color: countryColor, fontFamily: FONTS.subtitle }}>
+            {currentActingCountry}国决策
+          </span>
+          <span className="text-xs" style={{ color: theme.textMuted }}>
+            第{currentRound}回
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isWorking && (
+            <span className="text-xs px-2 py-0.5 rounded animate-pulse" style={{ backgroundColor: countryColor + "30", color: countryColor }}>
+              思考中...
+            </span>
+          )}
+          {isDone && (
+            <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: theme.success + "30", color: theme.success }}>
+              决策完成
+            </span>
+          )}
+        </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
-        {(isThinking || isProcessing || isDecisionComplete) && (
-          <div 
-            className="p-3 rounded transition-opacity duration-500" 
-            style={{ 
-              backgroundColor: theme.bg,
-              opacity: isDecisionComplete ? 0.7 : 1
-            }}
-          >
-            <div className="text-xs mb-2 font-bold" style={{ color: COUNTRY_COLORS[displayCountry] || theme.accent }}>
-              第{currentRound}回 · {displayCountry} {isDecisionComplete ? "决策完成" : "正在决策"}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-3 py-2"
+        style={{ fontSize: "13px", lineHeight: 1.7 }}
+      >
+        {displayThinking && (
+          <div className="mb-3">
+            <div className="text-xs font-bold mb-1" style={{ color: theme.textMuted }}>💭 思考</div>
+            <div className="pl-2 border-l-2" style={{ borderColor: countryColor + "40", color: theme.textMuted, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {displayThinking}
             </div>
-            {currentThinking && (
-              <div className="mb-3">
-                <div className="text-xs font-bold mb-1" style={{ color: "#7c3aed" }}>💭 深度思考</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#5b21b6" }}>
-                  {currentThinking}
-                </div>
-              </div>
-            )}
-            {currentContent && (
-              <div className="mb-3">
-                <div className="text-xs font-bold mb-1" style={{ color: theme.accent }}>📋 决策输出</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: theme.text }}>
-                  {currentContent}
-                </div>
-              </div>
-            )}
-            {currentActions && currentActions.length > 0 && (
-              <div>
-                <div className="text-xs font-bold mb-1" style={{ color: "#059669" }}>⚡ 执行行为</div>
-                {currentActions.map((a, i) => (
-                  <div key={i} className="text-xs leading-relaxed" style={{ color: "#047857" }}>
-                    {a}
-                  </div>
-                ))}
-              </div>
-            )}
-            {!currentThinking && !currentContent && (!currentActions || currentActions.length === 0) && !isDecisionComplete && (
-              <div className="text-xs" style={{ color: theme.textMuted }}>
-                <span className="animate-pulse">●</span> 等待AI响应...
-              </div>
-            )}
           </div>
         )}
 
-        {!isThinking && !isProcessing && !thinkingComplete && currentRecord && (
-          <div className="p-3 rounded" style={{ backgroundColor: theme.bg }}>
-            <div className="text-xs mb-2 font-bold" style={{ color: COUNTRY_COLORS[currentRecord.country] || theme.accent }}>
-              第{currentRecord.round}回 · {currentRecord.country}
+        {displayContent && (
+          <div className="mb-3">
+            <div className="text-xs font-bold mb-1" style={{ color: theme.text }}>📋 决策</div>
+            <div style={{ color: theme.text, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {displayContent}
             </div>
-            {currentRecord.thinking && (
-              <div className="mb-3">
-                <div className="text-xs font-bold mb-1" style={{ color: "#7c3aed" }}>💭 深度思考</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: "#5b21b6" }}>
-                  {currentRecord.thinking}
-                </div>
-              </div>
-            )}
-            {currentRecord.content && (
-              <div className="mb-3">
-                <div className="text-xs font-bold mb-1" style={{ color: theme.accent }}>📋 决策输出</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: theme.text }}>
-                  {currentRecord.content}
-                </div>
-              </div>
-            )}
-            {currentRecord.actions.length > 0 && (
-              <div>
-                <div className="text-xs font-bold mb-1" style={{ color: "#059669" }}>⚡ 执行行为</div>
-                {currentRecord.actions.map((a: string, i: number) => (
-                  <div key={i} className="text-xs leading-relaxed" style={{ color: "#047857" }}>
-                    {a}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
-        {!isThinking && !isProcessing && !thinkingComplete && !currentRecord && (
-          <div className="text-xs text-center py-8" style={{ color: theme.textMuted }}>
-            点击"推进"或"自动"开始游戏
+        {currentActions.length > 0 && (
+          <div className="mb-3">
+            <div className="text-xs font-bold mb-1" style={{ color: theme.text }}>⚔ 行动</div>
+            <div className="space-y-1">
+              {currentActions.map((action: any, idx: number) => (
+                <div
+                  key={`${action.type}-${idx}`}
+                  className="px-2 py-1 rounded text-xs"
+                  style={{ backgroundColor: theme.bg, color: theme.text }}
+                >
+                  {action.type === "attack" && `⚔ 进攻：${action.from || "?"} → ${action.to || "?"} (${action.troops || "?"}兵)`}
+                  {action.type === "recruit" && `👥 征兵：${action.block || "?"} (+${action.troops || "?"}兵)`}
+                  {action.type === "develop" && `🏗 发展：${action.block || "?"}`}
+                  {action.type === "tax" && `💰 征税`}
+                  {action.type === "move" && `🔄 调兵：${action.from || "?"} → ${action.to || "?"} (${action.troops || "?"}兵)`}
+                  {action.type === "harass" && `🏹 骚扰：${action.to || "?"}`}
+                  {!["attack", "recruit", "develop", "tax", "move", "harass"].includes(action.type) && `${action.type}: ${JSON.stringify(action)}`}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isWorking && !isDone && !displayContent && !displayThinking && (
+          <div className="flex items-center justify-center h-full">
+            <span className="text-sm" style={{ color: theme.textMuted }}>
+              等待{currentActingCountry}国决策...
+            </span>
           </div>
         )}
       </div>
     </div>
   );
+}, (prev, next) => {
+  if (prev.currentRound !== next.currentRound) return false;
+  if (prev.currentActingCountry !== next.currentActingCountry) return false;
+  if (prev.isThinking !== next.isThinking) return false;
+  if (prev.isProcessing !== next.isProcessing) return false;
+  if (prev.pendingCountrySwitch !== next.pendingCountrySwitch) return false;
+  if (prev.currentActions !== next.currentActions) return false;
+  if (prev.currentContent.length !== next.currentContent.length) return false;
+  if (prev.currentThinking.length !== next.currentThinking.length) return false;
+  return true;
 });
 
 export default ThinkingChain;

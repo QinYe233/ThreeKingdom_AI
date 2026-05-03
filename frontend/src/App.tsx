@@ -9,22 +9,9 @@ import DiplomacyPanel from "./components/UI/DiplomacyPanel";
 import ChroniclerPanel from "./components/UI/ChroniclerPanel";
 import SaveLoadPanel from "./components/UI/SaveLoadPanel";
 import { useGameStore } from "./stores/gameStore";
-import type { Block, ThinkingRecord } from "./types/game";
-import {
-	  THEME_COLORS,
-	  COUNTRY_COLORS,
-	} from "./theme";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-
-interface DiplomaticEvent {
-  round: number;
-  from_country: string;
-  to_country: string;
-  event_type: string;
-  content: string;
-  visibility: string;
-}
+import type { Block, ThinkingRecord, DiplomaticEvent } from "./types/game";
+import { THEME_COLORS, COUNTRY_COLORS, COUNTRY_ORDER } from "./theme";
+import { mapApi, gameApi, aiApi } from "./utils/api";
 
 const Header = memo(function Header({
   gameState,
@@ -243,7 +230,6 @@ export default function App() {
   const [relations, setRelations] = useState<Record<string, any>>({});
   const [diplomaticEvents, setDiplomaticEvents] = useState<DiplomaticEvent[]>([]);
   const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<ThinkingRecord | null>(null);
-  const [thinkingComplete, setThinkingComplete] = useState(false);
 
   const autoPlayRef = useRef(false);
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -253,8 +239,7 @@ export default function App() {
   const theme = THEME_COLORS;
 
   useEffect(() => {
-    fetch(`${API_BASE}/map/geojson`)
-      .then((r) => r.json())
+    mapApi.getGeoJSON()
       .then(setGeojson)
       .catch(console.error);
   }, []);
@@ -266,27 +251,9 @@ export default function App() {
     }
   }, [initialized, gameState?.round]);
 
-  useEffect(() => {
-    if (isThinking || isProcessing) {
-      setThinkingComplete(false);
-    }
-  }, [isThinking, isProcessing]);
-
-  useEffect(() => {
-    if (pendingCountrySwitch && !isThinking && !isProcessing) {
-      setThinkingComplete(true);
-      const timer = setTimeout(() => {
-        setThinkingComplete(false);
-        completeCountrySwitch();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [pendingCountrySwitch, isThinking, isProcessing, completeCountrySwitch]);
-
   const fetchBlocksData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/game/blocks`);
-      const data = await res.json();
+      const data: any = await gameApi.getBlocks();
       setBlocksData(data.blocks || {});
     } catch (e) {
       console.error(e);
@@ -295,8 +262,7 @@ export default function App() {
 
   const fetchRelations = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/game/relations`);
-      const data = await res.json();
+      const data: any = await gameApi.getRelations();
       setRelations(data);
     } catch (e) {
       console.error(e);
@@ -311,8 +277,7 @@ export default function App() {
   const handleInit = useCallback(async () => {
     setInitLoading(true);
     try {
-      const configRes = await fetch(`${API_BASE}/ai/check`);
-      const configData = await configRes.json();
+      const configData: any = await aiApi.checkConfig();
 
       if (!configData.all_configured) {
         setShowNoConfigWarning(true);
@@ -324,6 +289,12 @@ export default function App() {
       await fetchBlocksData();
     } catch (e) {
       console.error(e);
+      try {
+        await initGame();
+        await fetchBlocksData();
+      } catch (e2) {
+        console.error(e2);
+      }
     }
     setInitLoading(false);
   }, [initGame, fetchBlocksData]);
@@ -385,6 +356,16 @@ export default function App() {
     }
   }, [gameState?.round]);
 
+  const isLastActiveCountry = useCallback((country: string, countries: Record<string, any> | undefined) => {
+    if (!countries) return country === COUNTRY_ORDER[COUNTRY_ORDER.length - 1];
+    const activeCountries = COUNTRY_ORDER.filter(c => {
+      const cData = countries[c];
+      return cData && !cData.is_defeated;
+    });
+    if (activeCountries.length === 0) return true;
+    return country === activeCountries[activeCountries.length - 1];
+  }, []);
+
   const handleNextAction = useCallback(async () => {
     const state = useGameStore.getState();
     if (state.isProcessing || state.pendingCountrySwitch) return;
@@ -395,11 +376,13 @@ export default function App() {
     generateAnimations(result, actingCountry);
     await fetchBlocksData();
 
-    if (actingCountry === "吴") {
+    if (isLastActiveCountry(actingCountry, state.gameState?.countries)) {
       await nextRound();
       await fetchRelations();
+    } else {
+      completeCountrySwitch();
     }
-  }, [executeNextCountryStreaming, nextRound, generateAnimations, fetchBlocksData, fetchRelations]);
+  }, [executeNextCountryStreaming, nextRound, generateAnimations, fetchBlocksData, fetchRelations, isLastActiveCountry, completeCountrySwitch]);
 
   const scheduleAutoPlay = useCallback(() => {
     if (autoPlayTimerRef.current) {
@@ -426,16 +409,18 @@ export default function App() {
       generateAnimations(result, actingCountry);
       await fetchBlocksData();
 
-      if (actingCountry === "吴") {
+      if (isLastActiveCountry(actingCountry, state.gameState?.countries)) {
         await nextRound();
         await fetchRelations();
+      } else {
+        completeCountrySwitch();
       }
 
       if (autoPlayRef.current) {
         scheduleAutoPlay();
       }
     }, 1000);
-  }, [executeNextCountryStreaming, nextRound, generateAnimations, fetchBlocksData, fetchRelations]);
+  }, [executeNextCountryStreaming, nextRound, generateAnimations, fetchBlocksData, fetchRelations, isLastActiveCountry, completeCountrySwitch]);
 
   useEffect(() => {
     if (autoPlay && initialized && !pendingCountrySwitch) {
@@ -520,7 +505,6 @@ export default function App() {
             completedCountryName={completedCountryName}
             isThinking={isThinking}
             isProcessing={isProcessing}
-            thinkingComplete={thinkingComplete}
             currentThinking={currentThinking}
             currentContent={currentContent}
             currentActions={currentActions}
@@ -579,6 +563,7 @@ export default function App() {
           thinkingRecords={thinkingRecords}
           selectedRecord={selectedHistoryRecord}
           onSelectRecord={setSelectedHistoryRecord}
+          onClose={() => setShowHistory(false)}
           theme={theme}
         />
 
@@ -592,21 +577,31 @@ export default function App() {
           show={showDiplomacy}
           relations={relations}
           diplomaticEvents={diplomaticEvents}
+          onClose={() => setShowDiplomacy(false)}
           theme={theme}
         />
 
         <ChroniclerPanel
           show={showChronicler}
           narratives={narratives}
+          onClose={() => setShowChronicler(false)}
           theme={theme}
         />
       </div>
 
       {showNoConfigWarning && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="rounded-lg p-6 w-[400px]" style={{ backgroundColor: theme.sidebar, border: `1px solid #dc2626` }}>
-            <h3 className="text-lg font-bold mb-4" style={{ color: "#dc2626" }}>配置不完整</h3>
-            <p className="mb-4" style={{ color: theme.text }}>请先在设置中配置所有四个AI模型（魏、蜀、吴、史官），每个模型都需要填写Base URL、模型名称和API Key。</p>
+          <div className="rounded-lg p-6 w-[440px]" style={{ backgroundColor: theme.sidebar, border: `1px solid ${theme.accent}` }}>
+            <h3 className="text-lg font-bold mb-4" style={{ color: theme.accent }}>AI 配置不完整</h3>
+            <p className="mb-2 text-sm" style={{ color: theme.text }}>
+              以下角色的 AI 模型尚未配置，将使用规则引擎自动决策：
+            </p>
+            <p className="mb-4 text-sm font-bold" style={{ color: theme.accent }}>
+              {[...COUNTRY_ORDER, "史官"].join("、")}
+            </p>
+            <p className="mb-4 text-sm" style={{ color: theme.textMuted }}>
+              你可以先开始游戏，之后在设置中补全配置。未配置的角色会使用内置规则进行决策。
+            </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowNoConfigWarning(false)}
@@ -624,6 +619,22 @@ export default function App() {
                 style={{ backgroundColor: theme.accent }}
               >
                 前往设置
+              </button>
+              <button
+                onClick={async () => {
+                  setShowNoConfigWarning(false);
+                  setInitLoading(true);
+                  try {
+                    await initGame();
+                    await fetchBlocksData();
+                  } catch (e) {
+                    console.error(e);
+                  }
+                  setInitLoading(false);
+                }}
+                className="flex-1 px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded cursor-pointer"
+              >
+                直接开始
               </button>
             </div>
           </div>

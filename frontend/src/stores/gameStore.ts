@@ -1,7 +1,9 @@
 import { create } from "zustand";
-import type { GameState, Country, Block, General, Relation, Narrative, BattleResult, ThinkingRecord } from "../types/game";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+import type { GameState, Block, General, Narrative, BattleResult, ThinkingRecord } from "../types/game";
+import { gameApi } from "../utils/api";
+import { API_BASE } from "../utils/apiBase";
+import { COUNTRY_ORDER } from "../theme";
+import { generateActionSummary, getNextActiveCountry } from "../utils/gameHelpers";
 
 interface AIResult {
   country: string;
@@ -43,10 +45,10 @@ interface GameStore {
   selectBlock: (name: string) => void;
 }
 
-const COUNTRY_ORDER = ["魏", "蜀", "吴"];
 const MAX_NARRATIVES = 50;
 const MAX_THINKING_RECORDS = 100;
 const MAX_AI_RESULTS = 20;
+const FIRST_COUNTRY = COUNTRY_ORDER[0];
 
 export const useGameStore = create<GameStore>((set, get) => ({
   initialized: false,
@@ -59,8 +61,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   battleResults: [],
   aiResults: [],
   thinkingRecords: [],
-  currentActingCountry: "魏",
-  lastActingCountry: "魏",
+  currentActingCountry: FIRST_COUNTRY,
+  lastActingCountry: FIRST_COUNTRY,
   isThinking: false,
   currentThinking: "",
   currentContent: "",
@@ -70,13 +72,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   completedCountryName: null,
 
   initGame: async () => {
-    const res = await fetch(`${API_BASE}/game/init`, { method: "POST" });
-    if (!res.ok) throw new Error("Failed to initialize game");
+    await gameApi.initGame();
     set({ 
       initialized: true, 
       narratives: [], 
       thinkingRecords: [], 
-      currentActingCountry: "魏",
+      currentActingCountry: FIRST_COUNTRY,
       pendingCountrySwitch: false,
       completedCountryName: null,
       isProcessing: false,
@@ -87,48 +88,50 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   fetchState: async () => {
-    const res = await fetch(`${API_BASE}/game/state`);
-    const data = await res.json();
+    const data = await gameApi.getState() as any;
     set({ gameState: data });
   },
 
   fetchBlocks: async (country?: string): Promise<Record<string, Block>> => {
-    const url = country ? `${API_BASE}/game/blocks?country=${encodeURIComponent(country)}` : `${API_BASE}/game/blocks`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await gameApi.getBlocks(country) as any;
     return data.blocks || {};
   },
 
   fetchGenerals: async () => {
-    const res = await fetch(`${API_BASE}/game/generals?alive_only=true`);
-    const data = await res.json();
+    const data = await gameApi.getGenerals(true) as any;
     set({ generals: data.generals || [] });
   },
 
   fetchNarrative: async () => {
-    const res = await fetch(`${API_BASE}/game/narrative`);
-    const data = await res.json();
+    const data = await gameApi.getNarrative() as any;
     set({ narrative: data });
   },
 
   nextRound: async (): Promise<Narrative | null> => {
-    const res = await fetch(`${API_BASE}/game/next-round`, { method: "POST" });
-    if (!res.ok) {
-      console.error("nextRound failed:", res.status, await res.text());
+    try {
+      const data: any = await gameApi.nextRound();
+      set((state) => {
+        const newNarratives = data.narrative ? [...state.narratives, data.narrative] : state.narratives;
+        return {
+          narrative: data.narrative,
+          narratives: newNarratives.slice(-MAX_NARRATIVES),
+          currentActingCountry: FIRST_COUNTRY,
+          pendingCountrySwitch: false,
+          completedCountryName: null,
+          isProcessing: false,
+          isThinking: false,
+          currentThinking: "",
+          currentContent: "",
+          currentActions: [],
+        };
+      });
+      await get().fetchState();
+      await get().fetchGenerals();
+      return data.narrative;
+    } catch (e) {
+      console.error("nextRound failed:", e);
       return null;
     }
-    const data = await res.json();
-    set((state) => {
-      const newNarratives = data.narrative ? [...state.narratives, data.narrative] : state.narratives;
-      return {
-        narrative: data.narrative,
-        narratives: newNarratives.slice(-MAX_NARRATIVES),
-        currentActingCountry: "魏",
-      };
-    });
-    await get().fetchState();
-    await get().fetchGenerals();
-    return data.narrative;
   },
 
   executeNextCountry: async (): Promise<AIResult | null> => {
@@ -141,54 +144,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let result: AIResult | null = null;
 
     try {
-      const res = await fetch(`${API_BASE}/game/ai-turn/${encodeURIComponent(actingCountry)}`, { method: "POST" });
-      if (!res.ok) {
-        console.error("executeNextCountry failed:", res.status);
-        set({ isProcessing: false });
-        return null;
-      }
-      const data = await res.json();
+      const data: any = await gameApi.aiTurn(actingCountry);
       result = data;
 
       const actionSummaries: string[] = [];
       if (data.results) {
         for (const r of data.results) {
-          const action = r.action;
-          const params = r.parameters || {};
-          const rResult = r.result || {};
-          if (action === "attack") {
-            const from = params.from || "?";
-            const to = params.to || "?";
-            const troops = params.troops || 0;
-            if (rResult.battle_result?.block_captured) {
-              actionSummaries.push(`⚔ 攻占${to}（从${from}出兵${troops}）`);
-            } else {
-              actionSummaries.push(`⚔ 进攻${to}受挫（从${from}出兵${troops}）`);
-            }
-          } else if (action === "recruit") {
-            const block = params.block || "?";
-            const recruited = rResult.troops_recruited || 0;
-            actionSummaries.push(`🗡 于${block}征兵${recruited}`);
-          } else if (action === "tax") {
-            const gold = rResult.gold_earned || 0;
-            actionSummaries.push(`💰 征税得金${gold}`);
-          } else if (action === "develop") {
-            const block = params.block || "?";
-            const inc = rResult.manpower_increase || 0;
-            actionSummaries.push(`🏗 发展${block}（人力+${inc}）`);
-          } else if (action === "move") {
-            const from = params.from || "?";
-            const to = params.to || "?";
-            const troops = params.troops || 0;
-            actionSummaries.push(`➡ 调兵${troops}从${from}至${to}`);
-          } else if (action === "harass") {
-            const to = params.to || "?";
-            actionSummaries.push(`🏹 骚扰${to}`);
-          } else if (action === "declare_emperor") {
-            actionSummaries.push(`👑 称帝！`);
-          } else if (action === "move_capital") {
-            actionSummaries.push(`🏛 迁都至${params.new_capital || "?"}`);
-          }
+          const summary = generateActionSummary(r.action, r.parameters || {}, r.result || {});
+          if (summary) actionSummaries.push(summary);
         }
       }
 
@@ -219,9 +182,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
 
-      const currentIndex = COUNTRY_ORDER.indexOf(actingCountry);
-      const nextIndex = (currentIndex + 1) % COUNTRY_ORDER.length;
-      const nextCountry = COUNTRY_ORDER[nextIndex];
+      const nextCountry = getNextActiveCountry(actingCountry, get().gameState?.countries);
 
       set({
         aiResults: [...get().aiResults.filter(r => r.country !== actingCountry), data],
@@ -292,57 +253,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
               content = data.content || content;
               set({ currentThinking: thinking, currentContent: content, isThinking: false });
             } else if (data.type === "action") {
-              const action = data.action;
-              const params = data.parameters || {};
-              const rResult = data.result || {};
-              let actionSummary = "";
-
-              if (action === "attack") {
-                const from = params.from || "?";
-                const to = params.to || "?";
-                const troops = params.troops || 0;
-                if (rResult.battle_result?.block_captured) {
-                  actionSummary = `⚔ 攻占${to}（从${from}出兵${troops}）`;
-                } else {
-                  actionSummary = `⚔ 进攻${to}受挫（从${from}出兵${troops}）`;
-                }
-              } else if (action === "recruit") {
-                const block = params.block || "?";
-                const recruited = rResult.troops_recruited || 0;
-                actionSummary = `🗡 于${block}征兵${recruited}`;
-              } else if (action === "tax") {
-                const gold = rResult.gold_earned || 0;
-                actionSummary = `💰 征税得金${gold}`;
-              } else if (action === "develop") {
-                const block = params.block || "?";
-                const inc = rResult.manpower_increase || 0;
-                actionSummary = `🏗 发展${block}（人力+${inc}）`;
-              } else if (action === "move") {
-                const from = params.from || "?";
-                const to = params.to || "?";
-                const troops = params.troops || 0;
-                actionSummary = `➡ 调兵${troops}从${from}至${to}`;
-              } else if (action === "harass") {
-                const to = params.to || "?";
-                actionSummary = `🏹 骚扰${to}`;
-              } else if (action === "declare_emperor") {
-                actionSummary = `👑 称帝！`;
-              } else if (action === "move_capital") {
-                actionSummary = `🏛 迁都至${params.new_capital || "?"}`;
-              }
-
-              if (actionSummary) {
-                actions.push(actionSummary);
+              const summary = generateActionSummary(data.action, data.parameters || {}, data.result || {});
+              if (summary) {
+                actions.push(summary);
                 set({ currentActions: [...actions] });
               }
 
               results.push({
-                action,
-                parameters: params,
-                result: rResult,
+                action: data.action,
+                parameters: data.parameters,
+                result: data.result,
               });
 
-              if (action === "attack" && rResult.battle_result?.block_captured) {
+              if (data.action === "attack" && data.result?.battle_result?.block_captured) {
                 await get().fetchState();
               }
             } else if (data.type === "end") {
@@ -385,10 +308,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
         };
       });
 
-      const currentIndex = COUNTRY_ORDER.indexOf(actingCountry);
-      const nextIndex = (currentIndex + 1) % COUNTRY_ORDER.length;
-      const nextCountry = COUNTRY_ORDER[nextIndex];
-
       set((state) => {
         const newAiResults = result ? [...state.aiResults.filter(r => r.country !== actingCountry), result] : state.aiResults;
         return {
@@ -409,10 +328,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   completeCountrySwitch: () => {
-    const { currentActingCountry, completedCountryName } = get();
-    const currentIndex = COUNTRY_ORDER.indexOf(completedCountryName || currentActingCountry);
-    const nextIndex = (currentIndex + 1) % COUNTRY_ORDER.length;
-    const nextCountry = COUNTRY_ORDER[nextIndex];
+    const { completedCountryName, currentActingCountry } = get();
+    const fromCountry = completedCountryName || currentActingCountry;
+    const nextCountry = getNextActiveCountry(fromCountry, get().gameState?.countries);
 
     set({
       currentActingCountry: nextCountry,

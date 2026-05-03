@@ -100,3 +100,12 @@ export interface ThinkingRecord {
   content: string;
   actions: string[];
 }
+
+export interface DiplomaticEvent {
+  round: number;
+  from_country: string;
+  to_country: string;
+  event_type: string;
+  content: string;
+  visibility: string;
+}

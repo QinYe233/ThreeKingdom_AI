@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pathlib import Path
 import json
+from .game_state_holder import get_engine
 
 router = APIRouter(prefix="/map", tags=["map"])
 
@@ -21,8 +22,7 @@ def get_geojson():
 
 @router.get("/blocks-summary")
 def get_blocks_summary():
-    from ..core import GameEngine
-    from ..api.game import engine
+    engine = get_engine()
 
     if not engine.state:
         return {"error": "Game not initialized"}

@@ -1,10 +1,3 @@
-export type MapTheme = never; // Single theme only
-
-// ===========================
-// Parchment Theme (Europa Universalis inspired)
-// Historical Chinese scroll aesthetic
-// ===========================
-
 export const THEME_COLORS = {
   // Main colors - Warm aged paper palette
   bg: "#e8dccb",                    // Warm aged paper - main background
@@ -171,9 +164,6 @@ export const COUNTRY_COLOR_SETS: Record<string, { fill: string; stroke: string; 
   "凉州": { fill: "#cd853f", stroke: "#a0522d", star: "#eda55f" },
 };
 
-export const THEME_NAMES: Record<string, string> = {};
-export const THEME_BACKGROUNDS: Record<string, string> = {};
-
 export const OWNER_NAMES: Record<string, string> = {
   neutral: "中立",
   "魏": "魏",
@@ -189,6 +179,27 @@ export const OWNER_NAMES: Record<string, string> = {
 export const COUNTRY_ORDER = ["魏", "蜀", "吴"];
 
 export const ANIMATION_DURATION = 2500;
+
+export const SPECIALIZATION_LABELS: Record<string, string> = {
+  farming: "农垦",
+  trade: "商贸",
+  fortress: "堡垒",
+};
+
+export const GOAL_LABELS: Record<string, string> = {
+  expand: "扩张",
+  defend: "防御",
+  revenge: "复仇",
+  stabilize: "稳定",
+  declare_emperor: "称帝",
+};
+
+export const AI_ROLES = [
+  { id: "wei", name: "魏国", countryKey: "魏", desc: "控制曹操势力，以统一天下为目标" },
+  { id: "shu", name: "蜀国", countryKey: "蜀", desc: "控制刘备势力，以兴复汉室为目标" },
+  { id: "wu", name: "吴国", countryKey: "吴", desc: "控制孙权势力，以保境安民为目标" },
+  { id: "chronicler", name: "史官", countryKey: "", desc: "记录游戏历史，撰写叙事文本" },
+];
 
 export const SPEED_OPTIONS = [
   { value: 5000, label: "慢速" },

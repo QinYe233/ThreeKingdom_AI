@@ -40,6 +40,11 @@ backend/data/ai_config.json
 
 # Game state (user data)
 backend/data/game_state.json
+backend/data/saves/
+
+# Blog posts (personal)
+BLOG_POST.md
+OPTIMIZATION_REPORT.md
 
 # Cache
 .cache/

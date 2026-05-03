@@ -154,7 +154,27 @@ function Start-Backend {
     $venvPath = Join-Path $BackendDir "venv"
     $venvPython = Join-Path $venvPath "Scripts\python.exe"
 
+    $needCreateVenv = $false
     if (-not (Test-Path $venvPath)) {
+        $needCreateVenv = $true
+    } elseif (-not (Test-Path $venvPython)) {
+        $needCreateVenv = $true
+    } else {
+        try {
+            $null = & $venvPython --version 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $needCreateVenv = $true
+            }
+        } catch {
+            $needCreateVenv = $true
+        }
+    }
+
+    if ($needCreateVenv) {
+        if (Test-Path $venvPath) {
+            Write-Warning "Existing venv is broken, removing..."
+            Remove-Item -Recurse -Force $venvPath -ErrorAction SilentlyContinue
+        }
         Write-Info "Creating Python virtual environment..."
         try {
             Push-Location $BackendDir
@@ -175,7 +195,7 @@ function Start-Backend {
     $requirementsPath = Join-Path $BackendDir "requirements.txt"
     Write-Info "Installing backend dependencies..."
     try {
-        & $venvPython -m pip install -r $requirementsPath
+        & $venvPython -m pip install -r $requirementsPath -q
     } catch {
         Write-Warning "Backend dependency installation had issues, continuing..."
     }
@@ -183,7 +203,7 @@ function Start-Backend {
     try {
         $startInfo = New-Object System.Diagnostics.ProcessStartInfo
         $startInfo.FileName = $venvPython
-        $startInfo.Arguments = "-m", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"
+        $startInfo.Arguments = "-m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
         $startInfo.WorkingDirectory = $BackendDir
         $startInfo.UseShellExecute = $true
         $startInfo.WindowStyle = "Normal"
@@ -221,7 +241,7 @@ function Start-Frontend {
     try {
         $startInfo = New-Object System.Diagnostics.ProcessStartInfo
         $startInfo.FileName = "npm"
-        $startInfo.Arguments = "run", "dev"
+        $startInfo.Arguments = "run dev"
         $startInfo.WorkingDirectory = $FrontendDir
         $startInfo.UseShellExecute = $true
         $startInfo.WindowStyle = "Normal"

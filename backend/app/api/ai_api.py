@@ -5,14 +5,16 @@ AI API模块
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Dict
 import json
-import httpx
 
 from ..ai import (
     AIModelConfig, AI_ROLES, ROLE_NAMES, ROLE_DESCRIPTIONS, SYSTEM_PROMPTS,
-    get_ai_client, set_ai_config, is_all_configured, get_config_status
+    get_ai_client, set_ai_config, is_all_configured, get_config_status,
+    get_ai_config, AIDecisionEngine,
 )
+from ..core.constants import ACTION_COSTS, COUNTRY_TO_ROLE
+from .game_state_holder import get_engine
+from .game import execute_action, ActionRequest
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -74,8 +76,6 @@ def save_config(req: AIConfigRequest):
     if not req.base_url:
         raise HTTPException(status_code=400, detail="请输入Base URL")
     
-    from ..ai import get_ai_config
-    
     existing_config = get_ai_config(role)
     
     # 处理API Key保留逻辑
@@ -100,8 +100,8 @@ def save_config(req: AIConfigRequest):
 @router.post("/test-connection")
 async def test_connection(req: TestConnectionRequest):
     """
-    测试AI连接
-    发送简单请求验证API Key和Base URL是否有效
+    测试AI连接（使用表单中的配置）
+    使用 OpenAI 库发送请求，与实际 AI 调用路径一致
     """
     if not req.model:
         raise HTTPException(status_code=400, detail="请输入模型名称")
@@ -111,44 +111,80 @@ async def test_connection(req: TestConnectionRequest):
         raise HTTPException(status_code=400, detail="请输入Base URL")
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{req.base_url.rstrip('/')}/chat/completions",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {req.api_key}",
-                },
-                json={
-                    "model": req.model,
-                    "messages": [{"role": "user", "content": "Hi"}],
-                    "max_tokens": 5,
-                }
-            )
-            
-            if response.status_code == 200:
-                return {"status": "ok", "message": "连接成功"}
-            elif response.status_code == 401:
-                raise HTTPException(status_code=401, detail="API Key无效")
-            elif response.status_code == 404:
-                raise HTTPException(status_code=404, detail="模型不存在或API地址错误")
-            else:
-                error_detail = f"HTTP {response.status_code}"
-                try:
-                    error_data = response.json()
-                    if "error" in error_data:
-                        error_detail = error_data["error"].get("message", str(error_data["error"]))
-                except:
-                    pass
-                raise HTTPException(status_code=response.status_code, detail=error_detail)
-                
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="连接超时，请检查网络或API地址")
-    except httpx.ConnectError:
-        raise HTTPException(status_code=503, detail="无法连接到API服务器，请检查API地址")
-    except HTTPException:
-        raise
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(
+            api_key=req.api_key,
+            base_url=req.base_url,
+            timeout=30.0,
+        )
+        response = await client.chat.completions.create(
+            model=req.model,
+            messages=[{"role": "user", "content": "Hi"}],
+            max_tokens=5,
+        )
+        return {
+            "status": "ok",
+            "message": "连接成功",
+            "model": response.model,
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"连接测试失败: {str(e)}")
+        error_msg = str(e)
+        if "401" in error_msg or "auth" in error_msg.lower() or "api key" in error_msg.lower():
+            raise HTTPException(status_code=401, detail=f"API Key无效: {error_msg}")
+        elif "404" in error_msg or "model_not_found" in error_msg.lower() or "does not exist" in error_msg.lower():
+            raise HTTPException(status_code=404, detail=f"模型不存在或API地址错误: {error_msg}")
+        elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+            raise HTTPException(status_code=504, detail=f"连接超时，请检查网络或API地址: {error_msg}")
+        elif "connect" in error_msg.lower() or "connection" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=f"无法连接到API服务器，请检查Base URL: {error_msg}")
+        else:
+            raise HTTPException(status_code=500, detail=f"连接测试失败: {error_msg}")
+
+
+@router.post("/test-connection/{role}")
+async def test_connection_by_role(role: str):
+    """
+    测试已保存的AI配置连接
+    使用后端已保存的 API Key 进行测试，无需前端重新输入
+    """
+    role = role.lower()
+    if role not in AI_ROLES:
+        raise HTTPException(status_code=400, detail=f"无效的角色: {role}")
+
+    config = get_ai_config(role)
+
+    if not config.is_valid():
+        raise HTTPException(status_code=400, detail=f"{ROLE_NAMES.get(role, role)}未完成配置，请先填写模型、API Key和Base URL")
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            timeout=30.0,
+        )
+        response = await client.chat.completions.create(
+            model=config.model,
+            messages=[{"role": "user", "content": "Hi"}],
+            max_tokens=5,
+        )
+        return {
+            "status": "ok",
+            "message": f"{ROLE_NAMES.get(role, role)}连接成功",
+            "model": response.model,
+        }
+    except Exception as e:
+        error_msg = str(e)
+        if "401" in error_msg or "auth" in error_msg.lower() or "api key" in error_msg.lower():
+            raise HTTPException(status_code=401, detail=f"API Key无效: {error_msg}")
+        elif "404" in error_msg or "model_not_found" in error_msg.lower():
+            raise HTTPException(status_code=404, detail=f"模型不存在: {error_msg}")
+        elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+            raise HTTPException(status_code=504, detail=f"连接超时: {error_msg}")
+        elif "connect" in error_msg.lower() or "connection" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=f"无法连接到API服务器: {error_msg}")
+        else:
+            raise HTTPException(status_code=500, detail=f"连接测试失败: {error_msg}")
 
 
 @router.get("/check")
@@ -158,21 +194,14 @@ def check_all_configured():
 
 
 def _build_context(state, country_name: str) -> str:
-    """
-    构建AI决策上下文
-    整合国家状态、边境情况、外交关系等信息
-    """
-    from ..core.constants import ACTION_COSTS, get_config
-    
     country = state.countries.get(country_name)
     if not country:
         return ""
-    
-    # 统计国家基础数据
+
     blocks = [b for b in state.blocks.values() if b.owner == country_name]
     total_garrison = sum(b.garrison for b in blocks)
+    total_manpower = sum(b.manpower_pool for b in blocks)
 
-    # 收集边境区块信息
     border_blocks = []
     for block in blocks:
         for neighbor_name in block.neighbors:
@@ -186,7 +215,6 @@ def _build_context(state, country_name: str) -> str:
                     "to_garrison": neighbor.garrison,
                 })
 
-    # 收集外交关系信息
     relations_info = []
     for key, rel in state.relations.items():
         if country_name in (rel.country_a, rel.country_b):
@@ -199,57 +227,30 @@ def _build_context(state, country_name: str) -> str:
                 "at_war": rel.at_war,
             })
 
-    # 行动规则说明
-    action_rules = f"""
-【行动规则】
-每回合你有 {country.action_points:.1f} 行动点数(AP)，可执行多个行动直到AP耗尽：
+    developable = []
+    for b in blocks:
+        if b.develop_count < 3 and b.supply_connected and not b.recently_conquered:
+            developable.append(f"  {b.name}(人力池{b.manpower_pool}, 已发展{b.develop_count}次)")
 
-行动类型及消耗：
-- 进攻(attack): 消耗 1.0 AP，从己方区块出兵攻击相邻敌方或中立区块
-  * 出兵数量建议：至少100兵，推荐出兵30%-50%的守军
-  * 成功条件：攻击方兵力需明显多于防守方
-  * 注意：可以多次进攻，每次消耗1AP
-  
-- 征兵(recruit): 消耗 0.5 AP，在己方区块征召士兵
-  * 需要：区块有人力池(manpower_pool)，每点人力可征1兵
-  * 花费：每征100兵消耗约50金
-  
-- 发展(develop): 消耗 0.8 AP，提升区块人力池上限
-  * 花费：约300金
-  * 效果：永久增加区块人力产出
-  
-- 征税(tax): 消耗 0 AP，立即获得黄金
-  * 收入：根据控制的区块数量计算
-  
-- 调兵(move): 消耗 0.5 AP，在己方相邻区块间调动兵力
-  * 用途：集中兵力准备进攻或防守
-  
-- 骚扰(harass): 消耗 0.5 AP，削弱敌方区块
-  * 效果：降低敌方士气和秩序
-  
-- 外交(send_message): 消耗 0.5 AP，向其他国家发送外交信函
-  * 每回合仅限一次外交行动
-  
-- 迁都(move_capital): 消耗 2.0 AP，将首都迁至其他己方区块
-  
-- 称帝(declare_emperor): 消耗 3.0 AP，宣布称帝（需满足条件）
+    recruitable = []
+    for b in blocks:
+        if b.manpower_pool >= 10 and not b.recently_conquered:
+            recruitable.append(f"  {b.name}(人力池{b.manpower_pool}, 守军{b.garrison})")
 
-重要提示：
-1. 你可以执行多个相同类型的行动（如连续进攻多个区块）
-2. 行动点数每回合重置为6.0
-3. 合理规划行动顺序，优先执行最重要的行动
-"""
+    low_order_blocks = []
+    for b in blocks:
+        if b.order < 50:
+            low_order_blocks.append(f"  {b.name}(秩序{b.order})")
 
-    # 上一回合行动结果回顾
     last_actions_text = ""
     last_actions = state.last_round_actions.get(country_name, [])
     if last_actions:
-        last_actions_text = "\n【上一回合你的行动结果】\n"
+        last_actions_text = "【上回战报】\n"
         for i, action in enumerate(last_actions, 1):
             action_type = action.get("action", "未知")
             params = action.get("parameters", {})
             result = action.get("result", {})
-            
+
             if action_type == "attack":
                 from_block = params.get("from", "?")
                 to_block = params.get("to", "?")
@@ -258,56 +259,60 @@ def _build_context(state, country_name: str) -> str:
                 attacker_loss = result.get("battle_result", {}).get("attacker_loss", 0)
                 defender_loss = result.get("battle_result", {}).get("defender_loss", 0)
                 if success:
-                    last_actions_text += f"{i}. 进攻成功！从{from_block}出兵{troops}攻占{to_block}，敌军损失{defender_loss}，我军损失{attacker_loss}\n"
+                    last_actions_text += f"  {i}. 攻占{to_block}！从{from_block}出兵{troops}，歼敌{defender_loss}，损兵{attacker_loss}\n"
                 else:
-                    last_actions_text += f"{i}. 进攻受挫：从{from_block}出兵{troops}进攻{to_block}失败，我军损失{attacker_loss}，敌军损失{defender_loss}\n"
+                    last_actions_text += f"  {i}. 进攻{to_block}受挫，损兵{attacker_loss}，歼敌{defender_loss}\n"
             elif action_type == "recruit":
                 block = params.get("block", "?")
                 recruited = result.get("troops_recruited", 0)
-                last_actions_text += f"{i}. 在{block}征兵{recruited}人\n"
+                last_actions_text += f"  {i}. {block}征兵{recruited}人\n"
             elif action_type == "develop":
                 block = params.get("block", "?")
                 inc = result.get("manpower_increase", 0)
-                last_actions_text += f"{i}. 发展{block}，人力池+{inc}\n"
+                last_actions_text += f"  {i}. 发展{block}，人力+{inc}\n"
             elif action_type == "tax":
                 gold = result.get("gold_earned", 0)
-                last_actions_text += f"{i}. 征税获得{gold}金\n"
+                last_actions_text += f"  {i}. 征税得{gold}金\n"
             elif action_type == "move":
                 from_b = params.get("from", "?")
                 to_b = params.get("to", "?")
                 troops = params.get("troops", 0)
-                last_actions_text += f"{i}. 从{from_b}调兵{troops}至{to_b}\n"
+                last_actions_text += f"  {i}. 调兵{troops}自{from_b}至{to_b}\n"
             elif action_type == "harass":
                 to_block = params.get("to", "?")
-                last_actions_text += f"{i}. 骚扰{to_block}\n"
+                last_actions_text += f"  {i}. 骚扰{to_block}\n"
             elif action_type == "send_message":
                 to_country = params.get("to_country", "?")
-                last_actions_text += f"{i}. 向{to_country}发送外交信函\n"
+                last_actions_text += f"  {i}. 致书{to_country}\n"
             else:
-                last_actions_text += f"{i}. 执行了{action_type}\n"
+                last_actions_text += f"  {i}. {action_type}\n"
 
-    # 组装完整上下文
-    context = f"""
-国家: {country_name}
-黄金: {country.gold}
-秩序: {country.order}
-士气: {country.morale}
-首都: {country.capital}
-战略目标: {country.goal.value}
-控制区块数: {len(blocks)}
-总兵力: {total_garrison}
-行动点: {country.action_points}
-
-{action_rules}
+    context = f"""【国力概况】
+  国库：{country.gold}金 | 兵力：{total_garrison} | 人力储备：{total_manpower}
+  秩序：{country.order} | 士气：{country.morale} | 领地：{len(blocks)}处
+  首都：{country.capital} | 行动点：{country.action_points}
 
 {last_actions_text}
 
-边境情况:
-{chr(10).join(f"  {b['from']}({b['from_garrison']}兵) → {b['to']}({b['to_owner']},{b['to_garrison']}兵)" for b in border_blocks[:15])}
+【可发展领地】（花费400金，增加人力产出，最多3次）
+{chr(10).join(developable[:8]) if developable else "  无"}
 
-外交关系:
-{chr(10).join(f"  {r['target']}: 信任{r['trust']:.1f} 仇怨{r['grudge']:.1f} {'同盟' if r['is_allied'] else '交战' if r['at_war'] else '中立'}" for r in relations_info)}
-"""
+【可征兵之地】（花费200金，征召士兵）
+{chr(10).join(recruitable[:8]) if recruitable else "  无"}
+
+{"【秩序不稳之地】" + chr(10) + chr(10).join(low_order_blocks[:5]) if low_order_blocks else ""}
+
+【边境军情】
+{chr(10).join(f"  {b['from']}({b['from_garrison']}兵) → {b['to']}({b['to_owner']},{b['to_garrison']}兵)" for b in border_blocks[:12])}
+
+【邦交】
+{chr(10).join(f"  {r['target']}：{'同盟' if r['is_allied'] else '交战' if r['at_war'] else '中立'}（信任{r['trust']:.0f} 仇怨{r['grudge']:.0f}）" for r in relations_info)}
+
+【可行之事】（你有{country.action_points:.1f}行动点）
+  进攻(1点)：从己方出兵攻邻地 | 征兵(1点)：在己地征兵(200金)
+  发展(1点)：提升人力产出(400金) | 征税(0.5点)：收取税金
+  调兵(0.5点)：己方领地间调兵 | 骚扰(0.5点)：扰敌士气秩序"""
+
     return context
 
 
@@ -317,7 +322,7 @@ async def ai_think(country_name: str):
     AI思考接口（仅思考不执行）
     流式返回AI的思考过程
     """
-    from ..api.game import engine
+    engine = get_engine()
     if not engine.state:
         raise HTTPException(status_code=400, detail="游戏未初始化")
 
@@ -327,20 +332,22 @@ async def ai_think(country_name: str):
     if not context:
         raise HTTPException(status_code=404, detail="国家不存在")
 
-    # 国家到AI角色的映射
-    country_to_role = {"魏": "wei", "蜀": "shu", "吴": "wu"}
-    role = country_to_role.get(country_name, "wei")
+    role = COUNTRY_TO_ROLE.get(country_name, "wei")
     
     prompt_type = f"country_{role}"
     if prompt_type not in SYSTEM_PROMPTS:
         prompt_type = "country_wei"
 
     ai_client = get_ai_client(role)
+    ai_configured = ai_client.config.is_valid()
 
     async def stream_generator():
         yield f"data: {json.dumps({'type': 'start', 'country': country_name})}\n\n"
-        async for chunk in ai_client.generate_stream(prompt_type, context):
-            yield f"data: {json.dumps(chunk)}\n\n"
+        if ai_configured:
+            async for chunk in ai_client.generate_stream(prompt_type, context):
+                yield f"data: {json.dumps(chunk)}\n\n"
+        else:
+            yield f"data: {json.dumps({'type': 'content', 'content': f'[{country_name}AI未配置]'})}\n\n"
         yield f"data: {json.dumps({'type': 'end'})}\n\n"
 
     return StreamingResponse(
@@ -355,8 +362,7 @@ async def ai_think_and_act(country_name: str):
     AI思考并执行行动
     流式返回思考过程、决策内容、执行结果
     """
-    from ..api.game import engine
-    from ..core.constants import ACTION_COSTS
+    engine = get_engine()
     
     if not engine.state:
         raise HTTPException(status_code=400, detail="游戏未初始化")
@@ -369,48 +375,94 @@ async def ai_think_and_act(country_name: str):
     if country.is_defeated:
         return {"actions": [], "message": "Country is defeated"}
 
+    initial_ap = country.action_points
     context = _build_context(state, country_name)
     
-    # 国家到AI角色的映射
-    country_to_role = {"魏": "wei", "蜀": "shu", "吴": "wu"}
-    role = country_to_role.get(country_name, "wei")
+    role = COUNTRY_TO_ROLE.get(country_name, "wei")
     
     prompt_type = f"country_{role}"
     if prompt_type not in SYSTEM_PROMPTS:
         prompt_type = "country_wei"
 
     ai_client = get_ai_client(role)
+    ai_configured = ai_client.config.is_valid()
 
     async def stream_generator():
         yield f"data: {json.dumps({'type': 'start', 'country': country_name})}\n\n"
         
-        # 收集思考和内容
         thinking = ""
         content = ""
-        async for chunk in ai_client.generate_stream(prompt_type, context):
-            yield f"data: {json.dumps(chunk)}\n\n"
-            if chunk.get("type") == "thinking":
-                thinking += chunk.get("content", "")
-            elif chunk.get("type") == "content":
-                content += chunk.get("content", "")
+        was_truncated = False
+
+        if ai_configured:
+            async for chunk in ai_client.generate_stream(prompt_type, context):
+                yield f"data: {json.dumps(chunk)}\n\n"
+                if chunk.get("type") == "thinking":
+                    thinking += chunk.get("content", "")
+                elif chunk.get("type") == "content":
+                    content += chunk.get("content", "")
+                elif chunk.get("type") == "truncated":
+                    was_truncated = True
+        else:
+            content = f"[{country_name}AI未配置，使用规则引擎自动决策]"
+            yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
         
         yield f"data: {json.dumps({'type': 'thinking_end', 'thinking': thinking, 'content': content})}\n\n"
         
-        # AI决策引擎生成行动
-        from ..ai import AIDecisionEngine
         ai = AIDecisionEngine(state)
-        actions = ai.decide_actions(country_name, country.action_points)
+
+        if ai_configured and content:
+            if was_truncated:
+                actions = ai.decide_actions(country_name, initial_ap)
+            else:
+                actions = ai.hybrid_decide(country_name, content, initial_ap)
+        else:
+            actions = ai.decide_actions(country_name, initial_ap)
         
         yield f"data: {json.dumps({'type': 'actions_start', 'count': len(actions)})}\n\n"
         
-        # 逐个执行行动
         results = []
+        remaining_ap = initial_ap
         for i, action in enumerate(actions):
             cost = ACTION_COSTS.get(action["action_type"], 0)
-            if cost > 0 and country.action_points * 1000 < cost:
+            ap_cost = cost / 1000
+            if remaining_ap < ap_cost:
                 continue
-            
-            from ..api.game import ActionRequest, execute_action
+
+            if action["action_type"] == "attack":
+                target_name = action["parameters"].get("to", "")
+                target_block = state.blocks.get(target_name)
+                if target_block and target_block.owner == country_name:
+                    continue
+
+            if action["action_type"] == "move":
+                from_name = action["parameters"].get("from", "")
+                from_block = state.blocks.get(from_name)
+                troops = action["parameters"].get("troops", 0)
+                if from_block and from_block.garrison <= troops:
+                    action["parameters"]["troops"] = max(from_block.garrison - 30, 0)
+                    if action["parameters"]["troops"] <= 0:
+                        continue
+
+            if action["action_type"] == "harass":
+                to_name = action["parameters"].get("to", "")
+                to_block = state.blocks.get(to_name)
+                if to_block and to_block.owner == country_name:
+                    continue
+                from_name = action["parameters"].get("from", "")
+                if not from_name:
+                    border = [b for b in state.blocks.values()
+                              if b.owner == country_name and to_name in b.neighbors]
+                    if border:
+                        best = max(border, key=lambda b: b.garrison)
+                        from_name = best.name
+                        action["parameters"]["from"] = from_name
+                        troops = action["parameters"].get("troops", 0)
+                        if troops <= 0:
+                            troops = min(best.garrison // 3, 300)
+                        troops = max(50, min(troops, 500, best.garrison - 50))
+                        action["parameters"]["troops"] = troops
+
             req = ActionRequest(
                 country=country_name,
                 action_type=action["action_type"],
@@ -418,9 +470,9 @@ async def ai_think_and_act(country_name: str):
             )
             result = execute_action(req)
             
-            # 扣除行动点数
             if "error" not in result:
-                country.action_points = max(0, country.action_points - cost / 1000)
+                remaining_ap -= ap_cost
+                country.action_points = max(0, remaining_ap)
             
             results.append({
                 "action": action["action_type"],
@@ -430,7 +482,6 @@ async def ai_think_and_act(country_name: str):
             
             yield f"data: {json.dumps({'type': 'action', 'index': i, 'action': action['action_type'], 'parameters': action['parameters'], 'result': result})}\n\n"
         
-        # 保存本回合行动结果
         state.last_round_actions[country_name] = results
         
         yield f"data: {json.dumps({'type': 'end', 'country': country_name, 'actions_executed': len(results), 'results': results})}\n\n"

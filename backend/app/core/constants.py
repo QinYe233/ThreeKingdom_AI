@@ -57,24 +57,6 @@ GAME_CONSTANTS = {
     "FOG_PHASE_2_END": 240,
 }
 
-def get_action_cost(action: str) -> int:
-    config_costs = get_config("action_costs", {})
-    default_costs = {
-        "move": 500,
-        "attack": 1000,
-        "harass": 500,
-        "recruit": 1000,
-        "develop": 1000,
-        "tax": 500,
-        "send_message": 500,
-        "disband": 0,
-        "move_capital": 2000,
-        "declare_emperor": 0,
-    }
-    if config_costs and action in config_costs:
-        return config_costs[action]
-    return default_costs.get(action, 0)
-
 ACTION_COSTS = {
     "move": 500,
     "attack": 1000,
@@ -214,89 +196,25 @@ ORDER_MORALE_DESCRIPTIONS = {
     (0, 29): ("民不聊生", "军心涣散"),
 }
 
-DIPLOMATIC_EVENTS = {
-    "attack": "【系统】{attacker}向{defender}（{block}）发动军事进攻，两国进入交战状态。",
-    "betrayal": "【系统】{attacker}背弃盟约，突袭{defender}（{block}）！同盟破裂。",
-    "truce": "【系统】{country_a}与{country_b}宣布停战。",
-    "alliance": "【系统】{country_a}与{country_b}缔结同盟，誓约共进退。",
-    "break_alliance": "【系统】{country_a}宣布与{country_b}解除同盟关系。",
-    "declare_emperor": "【系统】{country}君主登基称帝，国号{title}，改元{era}。",
-    "capital_fallen": "【系统】{country}都城陷落！朝廷仓皇南迁，天下震动。",
-    "nation_defeated": "【系统】{country}疆土尽丧，社稷覆亡。",
-    "move_capital": "【系统】{country}迁都至{new_capital}，旧都萧条，新政伊始。",
+HISTORICAL_CAPITALS = {
+    "魏": ["许昌", "洛阳"],
+    "蜀": ["成都", "长安"],
+    "吴": ["建业", "武昌"],
 }
 
-HISTORICAL_EVENTS = {
-    "guandu": {
-        "name": "官渡之战",
-        "trigger_date": (200, 10),
-        "perceive_start": (200, 7),
-        "perceive_content": "河北袁绍厉兵秣马",
-        "conditions": {"country": "魏"},
-        "effects": {"morale": 10, "gold": 500},
-    },
-    "sun_ce_death": {
-        "name": "孙策遇刺",
-        "trigger_date": (200, 4),
-        "perceive_start": (200, 1),
-        "perceive_content": "许贡门客阴蓄复仇之志",
-        "conditions": {"country": "吴"},
-        "effects": {"order": -8, "morale": -5},
-    },
-    "chibi": {
-        "name": "赤壁之战",
-        "trigger_date": (208, 11),
-        "perceive_start": (208, 7),
-        "perceive_content": "曹操有吞并江东之意",
-        "conditions": {"country": "魏"},
-        "effects": {},
-    },
-    "hanzhong": {
-        "name": "汉中争夺战",
-        "trigger_date": (217, 1),
-        "perceive_start": (216, 7),
-        "perceive_content": "汉中张鲁已降曹",
-        "conditions": {},
-        "effects": {},
-    },
-    "guanyu_northern": {
-        "name": "关羽北伐",
-        "trigger_date": (219, 7),
-        "perceive_start": (219, 1),
-        "perceive_content": "关羽北上之意昭然",
-        "conditions": {"country": "蜀", "general": "关羽"},
-        "effects": {},
-    },
-    "yiling": {
-        "name": "夷陵之战",
-        "trigger_date": (221, 7),
-        "perceive_start": (221, 1),
-        "perceive_content": "刘备誓言复仇",
-        "conditions": {"country": "蜀"},
-        "effects": {},
-    },
-    "nanzheng": {
-        "name": "诸葛亮南征",
-        "trigger_date": (225, 3),
-        "perceive_start": (224, 7),
-        "perceive_content": "南中蛮部屡叛",
-        "conditions": {"country": "蜀", "general": "诸葛亮"},
-        "effects": {},
-    },
-    "beifa": {
-        "name": "诸葛亮北伐",
-        "trigger_date": (227, 3),
-        "perceive_start": (226, 7),
-        "perceive_content": "北伐之议已定",
-        "conditions": {"country": "蜀", "general": "诸葛亮"},
-        "effects": {"action_points_bonus": 1.0},
-    },
-    "simazhao_coup": {
-        "name": "司马懿政变",
-        "trigger_date": (249, 1),
-        "perceive_start": (248, 7),
-        "perceive_content": "司马懿称病不朝",
-        "conditions": {"country": "魏"},
-        "effects": {"order": -15, "morale": -10},
-    },
+PLAYABLE_COUNTRIES = ["魏", "蜀", "吴"]
+
+EXCLUDED_CHRONICLER_COUNTRIES = ["公孙度", "士燮", "南中", "山越", "凉州"]
+
+COUNTRY_TO_ROLE = {"魏": "wei", "蜀": "shu", "吴": "wu"}
+
+SPECIALIZATION_LABELS = {"farming": "农垦", "trade": "商贸", "fortress": "堡垒"}
+
+GOAL_LABELS = {
+    "expand": "扩张",
+    "defend": "防御",
+    "revenge": "复仇",
+    "stabilize": "稳定",
+    "declare_emperor": "称帝",
 }
+

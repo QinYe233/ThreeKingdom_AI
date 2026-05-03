@@ -6,12 +6,14 @@ import { FONTS, COUNTRY_COLORS } from "../../theme";
 interface ChroniclerPanelProps {
   show: boolean;
   narratives: Narrative[];
+  onClose: () => void;
   theme: ThemeColors;
 }
 
 const ChroniclerPanel = memo(function ChroniclerPanel({
   show,
   narratives,
+  onClose,
   theme
 }: ChroniclerPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -39,10 +41,11 @@ const ChroniclerPanel = memo(function ChroniclerPanel({
           <div className="flex items-center justify-between p-2 border-b" style={{ borderColor: theme.border }}>
             <div className="text-sm font-subtitle font-bold" style={{ color: theme.accent, fontFamily: FONTS.subtitle }}>📜 史官编年</div>
             <button
+              onClick={onClose}
               className="w-6 h-6 rounded cursor-pointer flex items-center justify-center"
               style={{ backgroundColor: theme.border, color: theme.textMuted }}
             >
-              ▼
+              ✕
             </button>
           </div>
           <div className="flex-1 flex items-center justify-center">
@@ -71,10 +74,11 @@ const ChroniclerPanel = memo(function ChroniclerPanel({
         <div className="flex items-center justify-between p-2 border-b" style={{ borderColor: theme.border }}>
           <div className="text-sm font-subtitle font-bold" style={{ color: theme.accent, fontFamily: FONTS.subtitle }}>📜 史官编年</div>
           <button
+            onClick={onClose}
             className="w-6 h-6 rounded cursor-pointer flex items-center justify-center"
             style={{ backgroundColor: theme.border, color: theme.textMuted }}
           >
-            ▼
+            ✕
           </button>
         </div>
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-4">

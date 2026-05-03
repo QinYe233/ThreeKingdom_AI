@@ -1,11 +1,15 @@
-import json
-from typing import Optional
+from typing import Callable, Optional
 
 from ..models import GameState, BattleResult
-from ..core.constants import ORDER_MORALE_DESCRIPTIONS
+from ..core.constants import ORDER_MORALE_DESCRIPTIONS, EXCLUDED_CHRONICLER_COUNTRIES
 
 
 class ChroniclerSystem:
+    def __init__(self):
+        self._ai_narrative_generator: Optional[Callable[[GameState, list[dict], dict, int], str]] = None
+
+    def set_ai_narrative_generator(self, generator: Callable[[GameState, list[dict], dict, int], str]) -> None:
+        self._ai_narrative_generator = generator
     def generate_narrative(self, state: GameState, battle_results: list[BattleResult], round_number: Optional[int] = None) -> dict:
         if round_number is None:
             round_number = state.round
@@ -82,7 +86,7 @@ class ChroniclerSystem:
     def _generate_trend(self, state: GameState) -> dict:
         trends = {}
         for name, country in state.countries.items():
-            if country.is_defeated or name in ["公孙度", "士燮", "南中", "山越", "凉州"]:
+            if country.is_defeated or name in EXCLUDED_CHRONICLER_COUNTRIES:
                 continue
 
             blocks_count = sum(1 for b in state.blocks.values() if b.owner == name)
@@ -111,42 +115,12 @@ class ChroniclerSystem:
 
     def _generate_ai_narrative(self, state: GameState, events: list[dict], trend: dict, round_number: int) -> str:
         try:
-            from ..ai import get_ai_client, SYSTEM_PROMPTS
-
-            chronicler_client = get_ai_client("chronicler")
-            if not chronicler_client or not chronicler_client.config.is_valid():
-                return self._fallback_narrative(events, trend, round_number)
-
-            events_text = ""
-            for e in events:
-                events_text += f"- {e['message']}\n"
-
-            trend_text = ""
-            for name, t in trend.items():
-                trend_text += f"- {name}：{t['military_trend']}，{t['economy_trend']}，{t['order_desc']}，{t['morale_desc']}，领地{t['blocks']}处，兵力{t['garrison']}\n"
-
-            context = f"""当前回合：第{round_number}回
-时间：{state.timeline.to_string()}
-
-本回合事件：
-{events_text if events_text else "（无重大事件）"}
-
-各势力态势：
-{trend_text if trend_text else "（无势力信息）"}"""
-
-            import asyncio
-            system_prompt = SYSTEM_PROMPTS.get("chronicler", "").format(context=context)
-
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(chronicler_client.generate("chronicler", context))
+            if self._ai_narrative_generator:
+                result = self._ai_narrative_generator(state, events, trend, round_number)
                 return result if result else self._fallback_narrative(events, trend, round_number)
-            finally:
-                loop.close()
-
-        except Exception as e:
-            return self._fallback_narrative(events, trend, round_number)
+        except Exception:
+            pass
+        return self._fallback_narrative(events, trend, round_number)
 
     def _fallback_narrative(self, events: list[dict], trend: dict, round_number: int) -> str:
         if not events:

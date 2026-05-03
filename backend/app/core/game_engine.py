@@ -9,13 +9,13 @@ from typing import Optional
 from collections import deque
 
 from ..models import (
-    Block, Country, Relation, Memory, General, GameState,
-    RegionType, GeographicTrait, StrategicGoal, MemoryImpact, MemoryEmotion,
-    GeneralTrait, Timeline, CountryMemory, BattleResult,
+    Block, Country, Relation, General, GameState,
+    RegionType, GeographicTrait, StrategicGoal,
+    GeneralTrait, CountryMemory,
 )
 from ..core.constants import (
     GAME_CONSTANTS, INITIAL_COUNTRIES, SPECIAL_NEUTRAL_FORCES,
-    INITIAL_GENERALS, CORE_REGIONS, get_config,
+    INITIAL_GENERALS, CORE_REGIONS, get_config, HISTORICAL_CAPITALS,
 )
 
 
@@ -378,8 +378,8 @@ class GameEngine:
         return False
 
     def _controls_historical_capital(self, country_name: str) -> bool:
-        """检查是否控制历史首都"""
-        historical_capitals = ["长安", "洛阳", "许昌", "成都", "建业", "武昌"]
+        """检查是否控制本国历史首都"""
+        historical_capitals = HISTORICAL_CAPITALS.get(country_name, [])
         return any(
             self.state.blocks.get(cap) and self.state.blocks[cap].owner == country_name
             for cap in historical_capitals
@@ -491,11 +491,12 @@ class GameEngine:
                     block.morale = max(0, block.morale - 1)
 
     def _reset_action_points(self) -> None:
-        """重置行动点数"""
+        """重置行动点数和战争压力"""
         ap = get_config("game_settings.initial_action_points", 6.0)
         for country in self.state.countries.values():
             if not country.is_defeated:
                 country.action_points = ap
+                country.war_pressure = 0
 
     def get_state(self) -> GameState:
         """获取游戏状态"""

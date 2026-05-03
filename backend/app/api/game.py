@@ -7,21 +7,21 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 
-from ..core import GameEngine, CombatSystem, EconomySystem, DiplomacySystem, FogSystem, ChroniclerSystem, EventsSystem
-from ..models import ActionType
+from ..core import EventsSystem
+from ..core.constants import GAME_CONSTANTS, ACTION_COSTS, HISTORICAL_CAPITALS, PLAYABLE_COUNTRIES, get_config
+from ..models import ActionType, Country
 from ..ai import AIDecisionEngine
+from .game_state_holder import get_engine, get_combat, get_economy, get_diplomacy, get_fog, get_chronicler
 
 router = APIRouter(prefix="/game", tags=["game"])
 logger = logging.getLogger(__name__)
 
-# 全局游戏实例 - 单例模式
-engine = GameEngine()
-combat = CombatSystem()
-economy = EconomySystem()
-diplomacy = DiplomacySystem()
-fog = FogSystem()
-chronicler = ChroniclerSystem()
-events = EventsSystem(engine.state) if engine.state else None
+engine = get_engine()
+combat = get_combat()
+economy = get_economy()
+diplomacy = get_diplomacy()
+fog = get_fog()
+chronicler = get_chronicler()
 
 
 class InitRequest(BaseModel):
@@ -236,18 +236,16 @@ def execute_attack(state, req: ActionRequest, country) -> dict:
 
     from_block.garrison -= troops
 
-    # 获取防守方国家
     defender_country = state.countries.get(to_block.owner)
     if not defender_country:
         defender_country = state.countries.get("neutral")
 
-    from ..models import Country
     if not defender_country:
         defender_country = Country(name=to_block.owner, order=50, morale=50)
 
     # 检查是否为背叛攻击（攻击盟友）
     is_betrayal = False
-    rel_key = diplomacy._get_relation_key(req.country, to_block.owner)
+    rel_key = diplomacy.get_relation_key(req.country, to_block.owner)
     relation = state.relations.get(rel_key)
     if relation and relation.is_allied:
         is_betrayal = True
@@ -258,14 +256,14 @@ def execute_attack(state, req: ActionRequest, country) -> dict:
     # 执行战斗
     result = combat.resolve_attack(
         country, defender_country, from_block, to_block,
-        troops, state.generals,
+        troops, state.generals, current_round=state.round,
     )
 
     # 处理战斗结果
     if result.block_captured:
-        # 攻占成功
         to_block.owner = req.country
-        to_block.garrison = troops - result.attacker_loss
+        surviving_troops = max(troops - result.attacker_loss, 1)
+        to_block.garrison = surviving_troops
         to_block.recently_conquered = True
         to_block.order = country.order
         to_block.morale = country.morale
@@ -338,12 +336,10 @@ def execute_harass(state, req: ActionRequest, country) -> dict:
 
     from_block.garrison -= troops
 
-    # 执行骚扰战斗
-    from ..models import Country
     defender_country = Country(name=to_block.owner, order=50, morale=50)
     result = combat.resolve_attack(
         country, defender_country, from_block, to_block,
-        troops, state.generals, is_harass=True,
+        troops, state.generals, is_harass=True, current_round=state.round,
     )
 
     # 骚扰后撤回残兵
@@ -470,11 +466,8 @@ def execute_move_capital(state, req: ActionRequest, country) -> dict:
         return {"error": "Block garrison must be >= 500"}
 
     # 检查冷却时间
-    from ..core.constants import GAME_CONSTANTS
-    if state.round - country.last_betrayal_round < GAME_CONSTANTS["MOVE_CAPITAL_COOLDOWN"]:
-        if hasattr(country, 'last_move_capital_round'):
-            if state.round - country.last_move_capital_round < GAME_CONSTANTS["MOVE_CAPITAL_COOLDOWN"]:
-                return {"error": "Move capital cooldown not expired"}
+    if state.round - country.last_move_capital_round < GAME_CONSTANTS["MOVE_CAPITAL_COOLDOWN"]:
+        return {"error": "Move capital cooldown not expired"}
 
     # 执行迁都
     old_capital = country.capital
@@ -487,10 +480,7 @@ def execute_move_capital(state, req: ActionRequest, country) -> dict:
         old_block.order = max(0, old_block.order - 15)
         old_block.morale = max(0, old_block.morale - 10)
 
-    if not hasattr(country, 'last_move_capital_round'):
-        country.last_move_capital_round = state.round
-    else:
-        country.last_move_capital_round = state.round
+    country.last_move_capital_round = state.round
 
     state.action_log.append({
         "round": state.round,
@@ -509,16 +499,10 @@ def execute_declare_emperor(state, req: ActionRequest, country) -> dict:
     需要满足区块数量和历史首都控制条件
     """
     blocks_count = sum(1 for b in state.blocks.values() if b.owner == req.country)
-    if blocks_count < 45:
-        return {"error": f"Need 45 blocks, have {blocks_count}"}
+    if blocks_count < GAME_CONSTANTS["EMPEROR_REQUIRED_BLOCKS"]:
+        return {"error": f"Need {GAME_CONSTANTS['EMPEROR_REQUIRED_BLOCKS']} blocks, have {blocks_count}"}
 
-    # 检查是否控制历史首都
-    historical_capitals = {
-        "魏": ["许昌", "洛阳"],
-        "蜀": ["成都", "长安"],
-        "吴": ["建业", "武昌"],
-    }
-    required = historical_capitals.get(req.country, [])
+    required = HISTORICAL_CAPITALS.get(req.country, [])
     has_capital = any(state.blocks.get(c) and state.blocks[c].owner == req.country for c in required)
     if not has_capital:
         return {"error": "Must control a historical capital"}
@@ -578,10 +562,10 @@ def execute_action(req: ActionRequest):
         raise HTTPException(status_code=400, detail="Country is defeated")
 
     # 行动点数检查（暂时跳过，由AI层控制）
-    from ..core.constants import ACTION_COSTS
     cost = ACTION_COSTS.get(req.action_type.value, 0)
     if cost > 0 and not req.parameters.get("_skip_ap_check"):
-        pass
+        if country.action_points * 1000 < cost:
+            return {"error": f"行动点数不足：需要 {cost/1000:.1f}，剩余 {country.action_points:.1f}"}
 
     handler = ACTION_HANDLERS.get(req.action_type)
     if handler:
@@ -617,7 +601,6 @@ def next_round():
     diplomacy.decay_memories(state)
 
     # 检查是否需要生成编年史叙事
-    from ..core.constants import get_config
     chronicler_interval = get_config("game_settings.chronicler_interval", 5)
     should_generate_narrative = current_round % chronicler_interval == 0 or current_round == 1
 
@@ -640,26 +623,9 @@ def next_round():
     autosave_interval = get_config("game_settings.autosave_interval", 5)
     if current_round % autosave_interval == 0 and current_round > 0:
         try:
-            from .save_api import _save_game_state, _generate_save_id, SAVE_DIR, SAVE_VERSION
-            from datetime import datetime
-            import json
-
-            save_data = _save_game_state(engine.state)
-            save_id = _generate_save_id(is_autosave=True)
-            save_data["save_id"] = save_id
-            save_data["timestamp"] = datetime.now().isoformat()
-            save_data["metadata"]["manual"] = False
-            save_data["metadata"]["autosave"] = True
-
-            save_path = SAVE_DIR / f"{save_id}.json"
-            with open(save_path, "w", encoding="utf-8") as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=2)
-
-            logger.info(f"Autosave created: {save_id}")
-
-            # 清理旧自动存档
-            from .save_api import _cleanup_old_saves
-            _cleanup_old_saves()
+            from .save_api import create_autosave_sync
+            create_autosave_sync()
+            logger.info(f"Autosave created for round {current_round}")
         except Exception as e:
             logger.error(f"Failed to create autosave: {e}")
 
@@ -693,10 +659,8 @@ def execute_ai_turn(country_name: str):
 
     results = []
     for action in actions:
-        # 检查行动点数
-        from ..core.constants import ACTION_COSTS
         cost = ACTION_COSTS.get(action["action_type"], 0)
-        if cost > 0 and country.action_points * 1000 < cost:
+        if cost > 0 and country.action_points < cost / 1000:
             continue
 
         req = ActionRequest(
@@ -732,7 +696,7 @@ def execute_ai_round(exclude_country: Optional[str] = None):
         raise HTTPException(status_code=400, detail="Game not initialized")
     state = engine.state
 
-    ai_countries = ["魏", "蜀", "吴"]
+    ai_countries = list(PLAYABLE_COUNTRIES)
     if exclude_country and exclude_country in ai_countries:
         ai_countries.remove(exclude_country)
 

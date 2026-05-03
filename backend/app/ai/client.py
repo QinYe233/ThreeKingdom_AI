@@ -15,6 +15,9 @@ class AIClient:
         if self._client is not None:
             return self._client
 
+        if not self.config.is_valid():
+            return None
+
         try:
             from openai import AsyncOpenAI
             self._client = AsyncOpenAI(
@@ -31,6 +34,7 @@ class AIClient:
             return self._fallback_generate(prompt_type, context)
 
         system_prompt = SYSTEM_PROMPTS.get(prompt_type, "").format(context=context)
+        max_tokens = self.config.get_effective_max_tokens(prompt_type)
 
         try:
             response = await client.chat.completions.create(
@@ -40,11 +44,16 @@ class AIClient:
                     {"role": "user", "content": "请给出你的分析和决策。"},
                 ],
                 temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
+                max_tokens=max_tokens,
             )
-            return response.choices[0].message.content or ""
+            content = response.choices[0].message.content or ""
+            finish_reason = response.choices[0].finish_reason if response.choices else None
+            if finish_reason == "length":
+                content += "\n\n（输出因长度限制被截断，以下为补充行动）\n征税\n"
+            return content
         except Exception as e:
-            return f"AI调用失败: {str(e)}"
+            print(f"AI调用失败 ({prompt_type}): {e}")
+            return self._fallback_generate(prompt_type, context)
 
     async def generate_stream(self, prompt_type: str, context: str) -> AsyncGenerator[dict, None]:
         client = self._get_client()
@@ -53,6 +62,7 @@ class AIClient:
             return
 
         system_prompt = SYSTEM_PROMPTS.get(prompt_type, "").format(context=context)
+        max_tokens = self.config.get_effective_max_tokens(prompt_type)
 
         try:
             kwargs = {
@@ -62,8 +72,9 @@ class AIClient:
                     {"role": "user", "content": "请给出你的分析和决策。"},
                 ],
                 "temperature": self.config.temperature,
-                "max_tokens": self.config.max_tokens,
+                "max_tokens": max_tokens,
                 "stream": True,
+                "stream_options": {"include_usage": True},
             }
 
             response = await client.chat.completions.create(**kwargs)
@@ -79,8 +90,12 @@ class AIClient:
                 if delta.content:
                     yield {"type": "content", "content": delta.content}
 
+                if chunk.choices[0].finish_reason == "length":
+                    yield {"type": "truncated", "content": ""}
+
         except Exception as e:
-            yield {"type": "content", "content": f"[错误] {str(e)}"}
+            print(f"AI流式调用失败 ({prompt_type}): {e}")
+            yield {"type": "content", "content": self._fallback_generate(prompt_type, context)}
 
     def _fallback_generate(self, prompt_type: str, context: str) -> str:
         if "country" in prompt_type:
@@ -114,7 +129,7 @@ class AIConfigManager:
                                 api_key=cfg.get("api_key", ""),
                                 base_url=cfg.get("base_url", ""),
                                 temperature=cfg.get("temperature", 0.7),
-                                max_tokens=cfg.get("max_tokens", 2000),
+                                max_tokens=cfg.get("max_tokens", 4096),
                             )
             except Exception as e:
                 print(f"加载AI配置失败: {e}")

@@ -1,9 +1,8 @@
 import random
-from typing import Optional
 
 from ..models import (
     Block, Country, BattleResult, General, GeneralTrait,
-    MemoryImpact, MemoryEmotion, Memory,
+    BlockSpecialization,
 )
 from ..core.constants import GAME_CONSTANTS
 
@@ -18,6 +17,7 @@ class CombatSystem:
         troops: int,
         generals: list[General],
         is_harass: bool = False,
+        current_round: int = 0,
     ) -> BattleResult:
         attacker_power = self._calc_attacker_power(
             attacker_country, attacker_block, troops, defender_block
@@ -63,7 +63,9 @@ class CombatSystem:
             result["block_captured"] = False
             result["attacker_won"] = False
 
-        if self._check_collapse(defender_country, war_pressure_change):
+        defender_country.war_pressure += war_pressure_change
+
+        if self._check_collapse(defender_country, defender_country.war_pressure):
             collapse = True
             result["defender_loss"] = defender_block.garrison
             result["block_captured"] = True
@@ -84,8 +86,8 @@ class CombatSystem:
             war_pressure_change=war_pressure_change,
         )
 
-        self._check_general_death(defender_block, defender_country.name, generals, battle_result)
-        self._check_general_death(attacker_block, attacker_country.name, generals, battle_result)
+        self._check_general_death(defender_block, defender_country.name, generals, battle_result, current_round)
+        self._check_general_death(attacker_block, attacker_country.name, generals, battle_result, current_round)
 
         return battle_result
 
@@ -105,7 +107,7 @@ class CombatSystem:
         defense_coeff = random.uniform(0.95, 1.15)
         supply_mod = 0.9 if not block.supply_connected else 1.0
 
-        if block.specialization == "fortress":
+        if block.specialization == BlockSpecialization.FORTRESS:
             spec_mod = 1.08 if block.geographic_trait.value == "fortress" else 1.05
         else:
             spec_mod = 1.0
@@ -119,11 +121,7 @@ class CombatSystem:
             if not g.alive or g.country != country_name:
                 continue
             if g.trait == GeneralTrait.WEI_ZHEN_HUAXIA:
-                country = None
-                if target_block.owner != "neutral":
-                    from ..models import GameState
-                    pass
-                power *= 1.0
+                power *= 1.12
             elif g.trait == GeneralTrait.WAN_REN_DI:
                 if target_block.garrison > 0:
                     power *= 1.1
@@ -155,7 +153,7 @@ class CombatSystem:
         return power
 
     def _attacker_decisive_victory(
-        self, troops: int, defender_block: Block, attacker: Country, defender: Country
+        self, troops: int, defender_block: Block, _attacker: Country, _defender: Country
     ) -> dict:
         defender_loss = defender_block.garrison
         attacker_loss = int(defender_block.garrison * random.uniform(0.8, 1.2))
@@ -168,7 +166,7 @@ class CombatSystem:
         }
 
     def _defender_decisive_victory(
-        self, troops: int, defender_block: Block, attacker: Country, defender: Country
+        self, troops: int, defender_block: Block, _attacker: Country, _defender: Country
     ) -> dict:
         attacker_loss = int(troops * random.uniform(0.8, 1.0))
         defender_loss = 0
@@ -180,10 +178,10 @@ class CombatSystem:
         }
 
     def _attacker_marginal_victory(
-        self, troops: int, defender_block: Block, attacker: Country, defender: Country
+        self, troops: int, defender_block: Block, _attacker: Country, _defender: Country
     ) -> dict:
         defender_loss = defender_block.garrison
-        attacker_loss = int(defender_block.garrison * random.uniform(0.8, 1.2))
+        attacker_loss = int(defender_block.garrison * random.uniform(1.0, 1.5))
         attacker_loss = min(attacker_loss, troops)
         return {
             "attacker_loss": attacker_loss,
@@ -193,7 +191,7 @@ class CombatSystem:
         }
 
     def _defender_marginal_victory(
-        self, troops: int, defender_block: Block, attacker: Country, defender: Country
+        self, troops: int, defender_block: Block, _attacker: Country, _defender: Country
     ) -> dict:
         attacker_loss = int(troops * random.uniform(0.7, 1.0))
         defender_loss = int(troops * 0.2)
@@ -212,10 +210,14 @@ class CombatSystem:
             if country.morale < 40:
                 return True
             return random.random() < 0.3
+        if war_pressure >= 40:
+            if country.morale < 25:
+                return True
+            return random.random() < 0.1
         return False
 
     def _check_general_death(
-        self, block: Block, country_name: str, generals: list[General], result: BattleResult
+        self, block: Block, country_name: str, generals: list[General], result: BattleResult, current_round: int = 0
     ) -> None:
         for g in generals:
             if not g.alive or g.country != country_name or g.block != block.name:
@@ -226,4 +228,4 @@ class CombatSystem:
                     death_prob /= 2
                 if random.random() < death_prob:
                     g.alive = False
-                    g.death_round = result.round if hasattr(result, 'round') else 0
+                    g.death_round = current_round

@@ -1,6 +1,5 @@
 import axios from "axios";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+import { API_BASE } from "./apiBase";
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -32,6 +31,7 @@ export const gameApi = {
   getRelations: () => api.get("/game/relations"),
   getMemories: (country: string) => api.get(`/game/memories/${country}`),
   getHistory: (limit = 50) => api.get("/game/history", { params: { limit } }),
+  aiTurn: (country: string) => api.post(`/game/ai-turn/${country}`),
 };
 
 export const mapApi = {
@@ -43,6 +43,7 @@ export const aiApi = {
   getStatus: () => api.get("/ai/status"),
   checkConfig: () => api.get("/ai/check"),
   testConnection: (data: any) => api.post("/ai/test-connection", data),
+  testConnectionByRole: (role: string) => api.post(`/ai/test-connection/${role}`),
   saveConfig: (data: any) => api.post("/ai/config", data),
   thinkAndAct: (country: string) => api.post(`/ai/think-and-act/${country}`),
 };
@@ -52,4 +53,5 @@ export const saveApi = {
   manual: (data?: any) => api.post("/save/manual", data),
   load: (saveId: string) => api.post(`/save/load/${saveId}`),
   delete: (saveId: string) => api.delete(`/save/${saveId}`),
+  count: () => api.get("/save/count"),
 };

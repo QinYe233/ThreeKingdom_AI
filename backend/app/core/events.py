@@ -1,6 +1,5 @@
 import random
-from typing import Optional
-from ..models import GameState, Block, MemoryImpact, MemoryEmotion
+from ..models import GameState, Block, Memory, MemoryImpact, MemoryEmotion
 
 
 class EventsSystem:
@@ -67,15 +66,14 @@ class EventsSystem:
             block = self.state.blocks.get(block_name)
             if not block:
                 continue
-            if block.owner == "公孙度":
-                if block.recently_conquered:
-                    if block_name == "襄平":
-                        events.append({
-                            "type": "liaodong_conquered",
-                            "conqueror": block.owner,
-                            "message": f"{block.owner}征服辽东，北境安宁！",
-                        })
-                        break
+            if block.owner != "公孙度" and block.recently_conquered:
+                if block_name == "襄平":
+                    events.append({
+                        "type": "liaodong_conquered",
+                        "conqueror": block.owner,
+                        "message": f"{block.owner}征服辽东，北境安宁！",
+                    })
+                    break
 
         return events
 
@@ -171,7 +169,6 @@ class EventsSystem:
         return events
 
     def _add_memory(self, country_name: str, event: str, impact: MemoryImpact, emotion: MemoryEmotion, target: str):
-        from ..models import Memory
         cm = self.state.country_memories.get(country_name)
         if cm:
             memory = Memory(

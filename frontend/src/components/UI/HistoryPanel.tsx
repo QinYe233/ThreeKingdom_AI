@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect } from "react";
+import { memo, useEffect } from "react";
 import type { ThemeColors } from "../../theme";
 import type { ThinkingRecord } from "../../types/game";
 import { COUNTRY_COLORS } from "../../theme";
@@ -8,6 +8,7 @@ interface HistoryPanelProps {
   thinkingRecords: ThinkingRecord[];
   selectedRecord: ThinkingRecord | null;
   onSelectRecord: (record: ThinkingRecord | null) => void;
+  onClose: () => void;
   theme: ThemeColors;
 }
 
@@ -16,6 +17,7 @@ const HistoryPanel = memo(function HistoryPanel({
   thinkingRecords,
   selectedRecord,
   onSelectRecord,
+  onClose,
   theme
 }: HistoryPanelProps) {
   const sortedRecords = [...thinkingRecords].sort((a, b) => b.round - a.round);
@@ -36,11 +38,11 @@ const HistoryPanel = memo(function HistoryPanel({
         <div className="flex items-center justify-between p-2 border-b" style={{ borderColor: theme.border }}>
           <div className="text-sm font-subtitle font-bold" style={{ color: theme.accent }}>📚 历史记录</div>
           <button
-            onClick={() => onSelectRecord(null)}
+            onClick={onClose}
             className="w-6 h-6 rounded cursor-pointer flex items-center justify-center"
             style={{ backgroundColor: theme.border, color: theme.textMuted }}
           >
-            ▼
+            ✕
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
