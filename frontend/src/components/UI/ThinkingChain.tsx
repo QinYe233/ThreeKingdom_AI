@@ -1,3 +1,7 @@
+/**
+ * AI思维链展示面板 - 实时显示AI的思考过程、决策内容和执行行动
+ * 使用自定义memo比较器优化高频SSE更新的渲染性能
+ */
 import { memo, useRef, useEffect, useState, useMemo } from "react";
 import type { ThemeColors } from "../../theme";
 import { COUNTRY_COLORS, FONTS } from "../../theme";
@@ -20,15 +24,13 @@ const ThinkingChain = memo(function ThinkingChain({
   currentRound,
   currentActingCountry,
   pendingCountrySwitch,
-  completedCountryName,
   isThinking,
   isProcessing,
   currentThinking,
   currentContent,
   currentActions,
-  currentRecord,
   theme,
-}: ThinkingChainProps) {
+}: Omit<ThinkingChainProps, 'completedCountryName' | 'currentRecord'>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const lastContentLengthRef = useRef(0);
@@ -148,14 +150,15 @@ const ThinkingChain = memo(function ThinkingChain({
     </div>
   );
 }, (prev, next) => {
+  // 自定义memo比较器：仅当关键状态变化时重渲染，避免SSE高频chunk导致不必要的更新
   if (prev.currentRound !== next.currentRound) return false;
   if (prev.currentActingCountry !== next.currentActingCountry) return false;
   if (prev.isThinking !== next.isThinking) return false;
   if (prev.isProcessing !== next.isProcessing) return false;
   if (prev.pendingCountrySwitch !== next.pendingCountrySwitch) return false;
   if (prev.currentActions !== next.currentActions) return false;
-  if (prev.currentContent.length !== next.currentContent.length) return false;
-  if (prev.currentThinking.length !== next.currentThinking.length) return false;
+  if (prev.currentContent !== next.currentContent) return false;
+  if (prev.currentThinking !== next.currentThinking) return false;
   return true;
 });
 

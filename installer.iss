@@ -41,11 +41,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; 启动脚本
 Source: "启动游戏.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "停止服务.bat"; DestDir: "{app}"; Flags: ignoreversion
-Source: "安装依赖.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "SanGuo.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Stop-SanGuo.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "install-deps.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "check_dependencies.py"; DestDir: "{app}"; Flags: ignoreversion
 
 ; 后端文件
 Source: "backend\*"; DestDir: "{app}\backend"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "__pycache__,*.pyc,venv,*.pyo,.env,*.pyc"
@@ -63,13 +60,11 @@ Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\启动游戏.bat"
 Name: "{group}\停止服务"; Filename: "{app}\停止服务.bat"
-Name: "{group}\安装依赖"; Filename: "{app}\安装依赖.bat"
 Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "{#MyAppURL}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\启动游戏.bat"; Tasks: desktopicon
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-ExecutionPolicy Bypass -File ""{app}\install-deps.ps1"""; Description: "安装依赖 (Python/Node.js)"; Flags: nowait postinstall skipifsilent unchecked
 Filename: "{app}\启动游戏.bat"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
@@ -127,19 +122,10 @@ begin
         '安装过程可能需要几分钟，请耐心等待。',
         mbConfirmation, MB_YESNO) = IDYES then
       begin
-        // 首先运行 Python 依赖检查脚本
-        if FileExists(ExpandConstant('{app}\check_dependencies.py')) then
-        begin
-          ShellExec('', 'python', '"' + ExpandConstant('{app}\check_dependencies.py') + '"',
-            '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
-        end
-        else
-        begin
-          // 回退到 PowerShell 脚本
-          ShellExec('', 'powershell.exe',
-            '-ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\install-deps.ps1') + '"',
-            '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
-        end;
+        // 使用 PowerShell 脚本安装依赖
+        ShellExec('', 'powershell.exe',
+          '-ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\SanGuo.ps1') + '"',
+          '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
         if ResultCode = 0 then
         begin
@@ -153,7 +139,7 @@ begin
         else
         begin
           MsgBox('依赖安装可能失败。'#13#10#13#10 +
-            '您可以稍后手动运行"安装依赖"快捷方式来完成安装。',
+            '您可以稍后手动运行"启动游戏"快捷方式来完成安装。',
             mbWarning, MB_OK);
         end;
       end;
@@ -163,8 +149,7 @@ begin
       // 所有依赖都已安装
       MsgBox('安装完成！'#13#10#13#10'使用说明：'#13#10 +
         '1. 双击桌面快捷方式启动游戏'#13#10 +
-        '2. 浏览器将自动打开 http://localhost:5173'#13#10 +
-        '3. 如需手动安装依赖，请运行"安装依赖"快捷方式',
+        '2. 浏览器将自动打开 http://localhost:5173',
         mbInformation, MB_OK);
     end;
   end;

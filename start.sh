@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "========================================"
 echo "  千秋弈·群雄逐鹿 - 一键启动"
 echo "========================================"
@@ -21,7 +25,7 @@ if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; the
         echo "  前端地址: http://localhost:5173"
         echo "  后端地址: http://localhost:8000"
         echo ""
-        
+
         # 尝试打开浏览器
         if command -v xdg-open &> /dev/null; then
             xdg-open http://localhost:5173
@@ -50,7 +54,7 @@ esac
 if ! command -v python3 &> /dev/null; then
     echo "[×] 未检测到Python"
     echo ""
-    
+
     # 尝试自动安装
     if [ "$PACKAGE_MANAGER" = "brew" ]; then
         read -p "检测到Homebrew，是否自动安装Python？(y/n): " INSTALL_PYTHON
@@ -70,7 +74,7 @@ if ! command -v python3 &> /dev/null; then
             exit 0
         fi
     fi
-    
+
     echo ""
     echo "请手动安装以下软件后重试："
     echo ""
@@ -87,7 +91,7 @@ echo "[√] Python已安装"
 if ! command -v node &> /dev/null; then
     echo "[×] 未检测到Node.js"
     echo ""
-    
+
     # 尝试自动安装
     if [ "$PACKAGE_MANAGER" = "brew" ]; then
         read -p "检测到Homebrew，是否自动安装Node.js？(y/n): " INSTALL_NODE
@@ -107,7 +111,7 @@ if ! command -v node &> /dev/null; then
             exit 0
         fi
     fi
-    
+
     echo ""
     echo "请手动安装Node.js: https://nodejs.org/"
     echo ""
@@ -118,7 +122,7 @@ echo ""
 
 # 检查并创建虚拟环境
 echo "[*] 正在检查后端环境..."
-cd backend
+cd "$SCRIPT_DIR/backend"
 if [ ! -d "venv" ]; then
     echo "[*] 创建Python虚拟环境..."
     python3 -m venv venv
@@ -139,10 +143,11 @@ if [ $? -ne 0 ]; then
 fi
 echo "[√] 后端环境准备完成"
 cd ..
+echo ""
 
 # 安装前端依赖
 echo "[*] 正在检查前端环境..."
-cd frontend
+cd "$SCRIPT_DIR/frontend"
 if [ ! -d "node_modules" ]; then
     echo "[*] 安装前端依赖..."
     npm install --silent
@@ -164,10 +169,10 @@ echo ""
 start_terminal() {
     local title="$1"
     local cmd="$2"
-    
+
     if command -v osascript &> /dev/null; then
         # macOS
-        osascript -e "tell application \"Terminal\" to do script \"cd '$(pwd)' && $cmd\""
+        osascript -e "tell application \"Terminal\" to do script \"cd '$SCRIPT_DIR' && $cmd\""
     elif command -v gnome-terminal &> /dev/null; then
         # Linux with GNOME
         gnome-terminal --title="$title" -- bash -c "$cmd; exec bash"

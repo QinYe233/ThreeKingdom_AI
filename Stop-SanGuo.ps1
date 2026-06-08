@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $Host.UI.RawUI.WindowTitle = "SanGuo - Stop Services"
 
 Clear-Host
@@ -40,7 +40,7 @@ try {
 
 try {
     Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object {
-        $_.MainWindowTitle -like "*SanGuo*" -or $_.CommandLine -like "*uvicorn*"
+        $_.CommandLine -like "*uvicorn*"
     } | ForEach-Object {
         Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
         $stopped = $true
@@ -51,7 +51,7 @@ try {
 
 try {
     Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object {
-        $_.MainWindowTitle -like "*SanGuo*" -or $_.CommandLine -like "*vite*"
+        $_.CommandLine -like "*vite*"
     } | ForEach-Object {
         Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
         $stopped = $true

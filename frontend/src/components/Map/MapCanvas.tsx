@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+/**
+ * 地图Canvas组件 - 基于Canvas2D绘制三国地图
+ * 支持缩放、拖拽、区块选中、动画效果（征兵/进攻/征税/发展）
+ * 使用Path2D缓存区块路径，实现高效点击检测和渲染
+ */
+import { useEffect, useRef, useState, useCallback, useMemo, memo } from "react";
 import { MAP_COLORS, COUNTRY_COLOR_SETS } from "../../theme";
 
 interface MapAnimation {
@@ -29,6 +34,7 @@ interface BlockPathCache {
 }
 
 const ANIMATION_DURATION = 5000;
+// 地理坐标范围（中国三国时期地图）
 const MIN_LON = 97, MAX_LON = 135, MIN_LAT = 15, MAX_LAT = 45;
 const LON_RANGE = MAX_LON - MIN_LON;
 const LAT_RANGE = MAX_LAT - MIN_LAT;
@@ -37,6 +43,7 @@ const MAX_SCALE = 3.0;
 const ZOOM_FACTOR = 1.05;
 const AGED_SPOTS_SEED = 42;
 
+/** 伪随机数生成器（用于古卷纸斑点纹理） */
 function seededRandom(seed: number) {
   let s = seed;
   return () => {
@@ -45,6 +52,7 @@ function seededRandom(seed: number) {
   };
 }
 
+/** 绘制圆角矩形路径 */
 function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
@@ -59,7 +67,7 @@ function drawRoundRect(ctx: CanvasRenderingContext2D, x: number, y: number, widt
   ctx.closePath();
 }
 
-export default function MapCanvas({
+const MapCanvas = memo(function MapCanvas({
   geojson,
   blocksData,
   countriesData,
@@ -70,23 +78,20 @@ export default function MapCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [lastOffset, setLastOffset] = useState({ x: 0, y: 0 });
-  
+  const isDraggingRef = useRef(false);
+
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const scaleRef = useRef(1);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const lastOffsetRef = useRef({ x: 0, y: 0 });
   const blockPathCacheRef = useRef<BlockPathCache[]>([]);
   const blockPathMapRef = useRef<Map<string, BlockPathCache>>(new Map());
-  const offsetRef = useRef(offset);
-  const scaleRef = useRef(scale);
   const lastDrawnOffsetRef = useRef({ x: 0, y: 0 });
   const lastDrawnScaleRef = useRef(1);
   const animationFrameRef = useRef<number | null>(null);
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
-  
-  offsetRef.current = offset;
-  scaleRef.current = scale;
+  const drawMapRef = useRef<(forceRedraw?: boolean) => void>(() => {});
 
   useEffect(() => {
     const handleResize = () => {
@@ -99,6 +104,7 @@ export default function MapCanvas({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // 计算视图变换参数（保持地图宽高比，居中显示）
   const getViewTransform = useCallback(() => {
     const aspectRatio = LON_RANGE / LAT_RANGE;
     const canvasAspect = canvasSize.width / canvasSize.height;
@@ -120,6 +126,7 @@ export default function MapCanvas({
     return { drawWidth, drawHeight, offsetX, offsetY };
   }, [canvasSize]);
 
+  /** 经纬度转Canvas像素坐标 */
   const lonLatToCanvas = useCallback((lon: number, lat: number) => {
     const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
     const x = ((lon - MIN_LON) / LON_RANGE) * drawWidth + offsetX;
@@ -127,6 +134,7 @@ export default function MapCanvas({
     return { x, y };
   }, [getViewTransform]);
 
+  /** Canvas像素坐标转经纬度 */
   const canvasToLonLat = useCallback((x: number, y: number) => {
     const { drawWidth, drawHeight, offsetX, offsetY } = getViewTransform();
     const lon = ((x - offsetX) / drawWidth) * LON_RANGE + MIN_LON;
@@ -134,9 +142,10 @@ export default function MapCanvas({
     return { lon, lat };
   }, [getViewTransform]);
 
+  // GeoJSON加载后，预计算Path2D缓存和区块边界（避免每帧重复计算）
   useEffect(() => {
     if (!geojson || !geojson.features) return;
-    
+
     const cache: BlockPathCache[] = [];
     const map = new Map<string, BlockPathCache>();
     
@@ -207,6 +216,7 @@ export default function MapCanvas({
     blockPathMapRef.current = map;
   }, [geojson]);
 
+  // 首都名称 → 势力名称映射
   const capitals = useMemo(() => {
     const map = new Map<string, string>();
     if (countriesData) {
@@ -217,6 +227,7 @@ export default function MapCanvas({
     return map;
   }, [countriesData]);
 
+  // 势力名称 → 首都名称映射
   const countryToCapital = useMemo(() => {
     const map = new Map<string, string>();
     if (countriesData) {
@@ -227,6 +238,7 @@ export default function MapCanvas({
     return map;
   }, [countriesData]);
 
+  /** 核心绘制函数 - 绘制地图底图、区块填充/描边、选中高亮、首都星标 */
   const drawMap = useCallback((forceRedraw: boolean = false) => {
     const canvas = canvasRef.current;
     if (!canvas || !geojson || !geojson.features) return;
@@ -234,6 +246,7 @@ export default function MapCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // 跳过无变化的帧（优化性能）
     const offsetChanged = 
       Math.abs(offsetRef.current.x - lastDrawnOffsetRef.current.x) > 0.5 ||
       Math.abs(offsetRef.current.y - lastDrawnOffsetRef.current.y) > 0.5;
@@ -376,6 +389,9 @@ export default function MapCanvas({
     }
   }, [geojson, blocksData, selectedBlock, canvasSize, lonLatToCanvas, capitals, getViewTransform]);
 
+  drawMapRef.current = drawMap;
+
+  /** 绘制行动动画（征兵飘字、进攻箭头、征税/发展提示） */
   const drawAnimations = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -508,19 +524,24 @@ export default function MapCanvas({
     return hasActiveAnimations;
   }, [animations, lonLatToCanvas, countryToCapital]);
 
+  // 渲染循环：有动画时用requestAnimationFrame，选中区块时用setTimeout实现脉冲
   useEffect(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
+    if (pulseTimerRef.current) {
+      clearTimeout(pulseTimerRef.current);
+      pulseTimerRef.current = null;
+    }
 
     const render = () => {
       drawMap(true);
-      drawAnimations();
-      
-      const hasActiveAnimations = animations.some(a => Date.now() - a.timestamp < ANIMATION_DURATION);
-      
-      if (hasActiveAnimations || selectedBlock) {
+      const hasActiveAnimations = drawAnimations();
+
+      if (hasActiveAnimations) {
         animationFrameRef.current = requestAnimationFrame(render);
+      } else if (selectedBlock) {
+        pulseTimerRef.current = setTimeout(render, 66);
       }
     };
 
@@ -530,6 +551,9 @@ export default function MapCanvas({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
+      if (pulseTimerRef.current) {
+        clearTimeout(pulseTimerRef.current);
+      }
     };
   }, [drawMap, drawAnimations, animations, selectedBlock]);
 
@@ -537,6 +561,7 @@ export default function MapCanvas({
     drawMap(true);
   }, [drawMap]);
 
+  /** 通过isPointInPath检测点击位置对应的区块 */
   const findBlockAtPoint = useCallback((x: number, y: number): string | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -567,27 +592,6 @@ export default function MapCanvas({
     return null;
   }, [canvasToLonLat]);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 1) {
-      e.preventDefault();
-      setIsDragging(true);
-      setDragStart({ x: e.clientX, y: e.clientY });
-      setLastOffset({ ...offsetRef.current });
-    }
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging) {
-      const dx = e.clientX - dragStart.x;
-      const dy = e.clientY - dragStart.y;
-      setOffset({ x: lastOffset.x + dx, y: lastOffset.y + dy });
-    }
-  }, [isDragging, dragStart, lastOffset]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
 
@@ -609,6 +613,7 @@ export default function MapCanvas({
     e.preventDefault();
   }, []);
 
+  // 滚轮缩放 - 以鼠标位置为中心缩放，保持鼠标下地理坐标不变
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -617,7 +622,7 @@ export default function MapCanvas({
       e.preventDefault();
       e.stopPropagation();
 
-      if (isDragging) return;
+      if (isDraggingRef.current) return;
 
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
@@ -645,14 +650,19 @@ export default function MapCanvas({
         newOffsetY = mouseY - ((MAX_LAT - lat) / LAT_RANGE) * newDrawHeight - (canvasSize.height - newDrawHeight) / 2;
       }
 
-      setScale(newScale);
-      setOffset({ x: newOffsetX, y: newOffsetY });
+      scaleRef.current = newScale;
+      offsetRef.current = { x: newOffsetX, y: newOffsetY };
+      drawMapRef.current(true);
     };
 
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
-  }, [canvasSize, canvasToLonLat, isDragging]);
+  }, [canvasSize, canvasToLonLat]);
 
+  // 拖拽状态（仅用于光标样式显示，事件处理用ref避免闭包问题）
+  const [isDraggingDisplay, setIsDraggingDisplay] = useState(false);
+
+  // 中键拖拽平移地图
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -660,22 +670,25 @@ export default function MapCanvas({
     const onMouseDown = (e: MouseEvent) => {
       if (e.button === 1) {
         e.preventDefault();
-        setIsDragging(true);
-        setDragStart({ x: e.clientX, y: e.clientY });
-        setLastOffset({ ...offsetRef.current });
+        isDraggingRef.current = true;
+        setIsDraggingDisplay(true);
+        dragStartRef.current = { x: e.clientX, y: e.clientY };
+        lastOffsetRef.current = { ...offsetRef.current };
       }
     };
 
     const onMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
-        const dx = e.clientX - dragStart.x;
-        const dy = e.clientY - dragStart.y;
-        setOffset({ x: lastOffset.x + dx, y: lastOffset.y + dy });
+      if (isDraggingRef.current) {
+        const dx = e.clientX - dragStartRef.current.x;
+        const dy = e.clientY - dragStartRef.current.y;
+        offsetRef.current = { x: lastOffsetRef.current.x + dx, y: lastOffsetRef.current.y + dy };
+        drawMapRef.current(true);
       }
     };
 
     const onMouseUp = () => {
-      setIsDragging(false);
+      isDraggingRef.current = false;
+      setIsDraggingDisplay(false);
     };
 
     canvas.addEventListener("mousedown", onMouseDown);
@@ -689,7 +702,7 @@ export default function MapCanvas({
       canvas.removeEventListener("mouseup", onMouseUp);
       canvas.removeEventListener("mouseleave", onMouseUp);
     };
-  }, [isDragging, dragStart, lastOffset]);
+  }, []);
 
   return (
     <div ref={containerRef} className="w-full h-full">
@@ -698,7 +711,7 @@ export default function MapCanvas({
         style={{
           width: canvasSize.width,
           height: canvasSize.height,
-          cursor: isDragging ? "grabbing" : "default",
+          cursor: isDraggingDisplay ? "grabbing" : "default",
           display: "block"
         }}
         onClick={handleClick}
@@ -706,4 +719,6 @@ export default function MapCanvas({
       />
     </div>
   );
-}
+});
+
+export default MapCanvas;
