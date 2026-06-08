@@ -1,7 +1,12 @@
-import { memo, useEffect } from "react";
+/**
+ * 历史记录面板 - 展示各势力的AI思考记录
+ * 支持按回合倒序浏览，点击查看详情（思考过程、决策输出、执行行为）
+ */
+import { memo } from "react";
 import type { ThemeColors } from "../../theme";
 import type { ThinkingRecord } from "../../types/game";
 import { COUNTRY_COLORS } from "../../theme";
+import { usePanelAnimation } from "../../hooks/usePanelAnimation";
 
 interface HistoryPanelProps {
   show: boolean;
@@ -20,15 +25,17 @@ const HistoryPanel = memo(function HistoryPanel({
   onClose,
   theme
 }: HistoryPanelProps) {
+  // 按回合倒序排列
   const sortedRecords = [...thinkingRecords].sort((a, b) => b.round - a.round);
+  const { panelRef, visible } = usePanelAnimation(show, "up", window.innerHeight * 0.4, 0.3);
 
-  if (!show) return null;
+  if (!visible) return null;
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 z-30 transition-transform duration-300"
+      ref={panelRef}
+      className="absolute bottom-0 left-0 right-0 z-30"
       style={{
-        transform: show ? 'translateY(0)' : 'translateY(100%)',
         height: '40vh',
         backgroundColor: theme.sidebar,
         borderTop: `2px solid ${theme.accent}`,

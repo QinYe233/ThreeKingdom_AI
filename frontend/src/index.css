@@ -72,21 +72,3 @@ body {
   border-radius: 3px;
 }
 
-@keyframes breathe {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.02);
-    opacity: 0.9;
-  }
-}
-
-.btn-breathe:hover {
-  animation: breathe 2s ease-in-out infinite;
-}
-
-.btn-breathe:not(:hover) {
-  animation: none;
-}

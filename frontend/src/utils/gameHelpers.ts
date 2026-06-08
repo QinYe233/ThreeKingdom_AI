@@ -1,5 +1,10 @@
-import { COUNTRY_ORDER } from "../theme";
+/**
+ * 游戏辅助函数
+ * 提供行动摘要生成和势力切换逻辑
+ */
+import { COUNTRY_ORDER } from "../constants";
 
+/** 根据行动类型和参数生成中文摘要文本 */
 export function generateActionSummary(action: string, params: Record<string, any>, result: Record<string, any>): string {
   if (action === "attack") {
     const from = params.from || "?";
@@ -43,6 +48,7 @@ export function generateActionSummary(action: string, params: Record<string, any
   return "";
 }
 
+/** 获取下一个未灭亡的势力（按COUNTRY_ORDER循环） */
 export function getNextActiveCountry(currentCountry: string, countries: Record<string, any> | undefined | null): string {
   const currentIndex = COUNTRY_ORDER.indexOf(currentCountry);
   for (let i = 1; i <= COUNTRY_ORDER.length; i++) {

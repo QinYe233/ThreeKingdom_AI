@@ -1,8 +1,18 @@
 """
 游戏存档API模块
-处理手动存档、自动存档、加载、删除等功能
+
+处理手动存档、自动存档、加载、删除、列表查询等存档管理功能。
+本模块提供以下功能：
+- 手动存档创建（支持自定义名称和描述）
+- 自动存档创建（每N回合自动触发）
+- 存档列表查询和计数
+- 存档加载（含版本兼容性检查）
+- 存档删除
+- 旧存档自动清理（保持总数不超过上限）
+- 游戏状态的序列化与反序列化
 """
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -11,21 +21,60 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from .game_state_holder import get_engine
 
+logger = logging.getLogger(__name__)
 
+
+# 存档目录：项目根目录下的 data/saves/
 SAVE_DIR = Path(__file__).parent.parent.parent / "data" / "saves"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
-SAVE_VERSION = "1.0.0"
-KEEP_MANUAL_SAVES = 10
-KEEP_AUTO_SAVES = 3
+SAVE_VERSION = "1.0.0"       # 当前存档版本号
+MAX_TOTAL_SAVES = 20         # 总存档上限
+KEEP_AUTO_SAVES = 5          # 自动存档保留数量
+
+
+def _check_version_compatible(save_version: str) -> bool:
+    """
+    检查存档版本是否兼容
+
+    仅比较主版本号和次版本号（前两位），补丁版本号差异视为兼容。
+
+    Args:
+        save_version: 存档中的版本号字符串
+
+    Returns:
+        bool: 版本兼容返回True，不兼容或格式错误返回False
+    """
+    try:
+        save_parts = tuple(int(x) for x in save_version.split("."))
+        current_parts = tuple(int(x) for x in SAVE_VERSION.split("."))
+        # 比较主版本号和次版本号（前两位），补丁版本差异视为兼容
+        return save_parts[:2] == current_parts[:2]
+    except (ValueError, AttributeError):
+        return False
 
 
 class SaveRequest(BaseModel):
+    """手动存档请求模型
+
+    Attributes:
+        name: 可选的存档名称
+        description: 可选的存档描述
+    """
     name: Optional[str] = None
     description: Optional[str] = None
 
 
 class SaveInfo(BaseModel):
+    """存档信息模型
+
+    Attributes:
+        save_id: 存档唯一标识
+        timestamp: 存档时间戳
+        round: 存档时的回合数
+        metadata: 存档元数据（手动/自动、描述等）
+        description: 可选的存档描述
+    """
     save_id: str
     timestamp: str
     round: int
@@ -34,12 +83,21 @@ class SaveInfo(BaseModel):
 
 
 class LoadSaveRequest(BaseModel):
+    """加载存档请求模型
+
+    Attributes:
+        save_id: 要加载的存档ID
+    """
     save_id: str
 
 
-def _cleanup_old_saves(keep_manual: int = KEEP_MANUAL_SAVES, keep_autosave: int = KEEP_AUTO_SAVES) -> None:
-    autosaves = []
-    manualsaves = []
+def _cleanup_old_saves() -> None:
+    """
+    清理旧存档，保持总存档数不超过上限
+
+    按时间排序存档文件，超出上限时删除最旧的存档。
+    """
+    all_saves = []
 
     for save_file in SAVE_DIR.glob("*.json"):
         try:
@@ -47,41 +105,44 @@ def _cleanup_old_saves(keep_manual: int = KEEP_MANUAL_SAVES, keep_autosave: int 
                 save_data = json.load(f)
                 metadata = save_data.get("metadata", {})
                 timestamp = save_data.get("timestamp", "")
-
-                if metadata.get("autosave", False):
-                    autosaves.append((save_file, timestamp))
-                else:
-                    manualsaves.append((save_file, timestamp))
+                all_saves.append((save_file, timestamp, metadata.get("autosave", False)))
         except Exception as e:
-            print(f"Error reading save file {save_file}: {e}")
+            logger.error(f"Error reading save file {save_file}: {e}")
             continue
 
-    autosaves.sort(key=lambda x: x[1], reverse=True)
-    manualsaves.sort(key=lambda x: x[1], reverse=True)
+    # 按时间排序，最新的在前
+    all_saves.sort(key=lambda x: x[1], reverse=True)
 
-    while len(autosaves) > keep_autosave:
-        save_file, _ = autosaves.pop()
+    # 如果总存档数超过上限，删除最旧的
+    while len(all_saves) > MAX_TOTAL_SAVES:
+        save_file, _, _ = all_saves.pop()
         try:
             save_file.unlink()
-            print(f"Deleted old autosave: {save_file.name}")
+            logger.info(f"Deleted old save: {save_file.name}")
         except Exception as e:
-            print(f"Error deleting autosave {save_file.name}: {e}")
-
-    while len(manualsaves) > keep_manual:
-        save_file, _ = manualsaves.pop()
-        try:
-            save_file.unlink()
-            print(f"Deleted old manual save: {save_file.name}")
-        except Exception as e:
-            print(f"Error deleting manual save {save_file.name}: {e}")
+            logger.error(f"Error deleting save {save_file.name}: {e}")
 
 
 def _generate_save_id(is_autosave: bool = False, custom_name: Optional[str] = None) -> str:
+    """
+    生成存档唯一ID
+
+    自动存档以 auto_ 前缀，手动存档以 manual_ 前缀。
+    可附加自定义名称（仅保留字母数字和部分符号）。
+
+    Args:
+        is_autosave: 是否为自动存档
+        custom_name: 可选的自定义名称
+
+    Returns:
+        str: 格式为 auto_时间戳 或 manual_名称_时间戳
+    """
     timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 
     if is_autosave:
         save_id = f"auto_{timestamp}"
     elif custom_name:
+        # 过滤自定义名称，仅保留安全字符
         safe_name = "".join(c for c in custom_name if c.isalnum() or c in ('-', '_', ' '))
         save_id = f"manual_{safe_name}_{timestamp}"
     else:
@@ -91,6 +152,19 @@ def _generate_save_id(is_autosave: bool = False, custom_name: Optional[str] = No
 
 
 def _save_game_state(game_state) -> dict:
+    """
+    将游戏状态序列化为可保存的字典
+
+    逐层序列化国家、区块、外交关系、国家记忆、武将、
+    外交消息、编年史叙事、战斗结果等所有游戏数据。
+    使用hasattr检查确保向后兼容（新增字段不会导致旧存档加载失败）。
+
+    Args:
+        game_state: GameState对象，为None时返回空字典
+
+    Returns:
+        dict: 完整的存档数据字典，包含版本号、时间戳、元数据和游戏状态
+    """
     if game_state is None:
         return {}
 
@@ -117,13 +191,16 @@ def _save_game_state(game_state) -> dict:
             "generals": [],
             "defeated_nations": {},
             "historical_events_triggered": {},
-            "action_log": game_state.action_log[-100:] if game_state.action_log else [],
-            "history": game_state.history[-100:] if game_state.history else [],
+            "action_log": game_state.action_log if game_state.action_log else [],
+            "history": game_state.history if game_state.history else [],
             "last_round_actions": {},
             "diplomatic_messages": [],
+            "narratives": [],
+            "battle_results_this_round": [],
         },
     }
 
+    # 序列化国家数据
     for country_name, country in game_state.countries.items():
         save_data["game_state"]["countries"][country_name] = {
             "name": country.name,
@@ -146,6 +223,7 @@ def _save_game_state(game_state) -> dict:
             "war_pressure": country.war_pressure if hasattr(country, "war_pressure") else 0,
         }
 
+    # 序列化区块数据
     for block_name, block in game_state.blocks.items():
         save_data["game_state"]["blocks"][block_name] = {
             "name": block.name,
@@ -165,6 +243,7 @@ def _save_game_state(game_state) -> dict:
             "last_recruit_round": block.last_recruit_round if hasattr(block, "last_recruit_round") else -10,
         }
 
+    # 序列化外交关系
     for rel_key, relation in game_state.relations.items():
         save_data["game_state"]["relations"][rel_key] = {
             "country_a": relation.country_a,
@@ -176,6 +255,7 @@ def _save_game_state(game_state) -> dict:
             "alliance_round": relation.alliance_round if hasattr(relation, "alliance_round") else -1,
         }
 
+    # 序列化国家记忆
     for mem_key, memory in game_state.country_memories.items():
         save_data["game_state"]["country_memories"][mem_key] = {
             "country_name": memory.country_name if hasattr(memory, "country_name") else None,
@@ -193,6 +273,7 @@ def _save_game_state(game_state) -> dict:
             ],
         }
 
+    # 序列化武将数据
     for general in game_state.generals:
         save_data["game_state"]["generals"].append({
             "name": general.name,
@@ -203,6 +284,7 @@ def _save_game_state(game_state) -> dict:
             "death_round": general.death_round if hasattr(general, "death_round") else None,
         })
 
+    # 序列化其他数据
     for k, v in game_state.defeated_nations.items():
         save_data["game_state"]["defeated_nations"][k] = v
 
@@ -212,6 +294,7 @@ def _save_game_state(game_state) -> dict:
     for country_name, actions in game_state.last_round_actions.items():
         save_data["game_state"]["last_round_actions"][country_name] = actions
 
+    # 序列化外交消息（仅保留最近50条）
     for msg in game_state.diplomatic_messages[-50:]:
         save_data["game_state"]["diplomatic_messages"].append({
             "id": msg.id,
@@ -220,22 +303,44 @@ def _save_game_state(game_state) -> dict:
             "content": msg.content,
             "visibility": msg.visibility,
             "round": msg.round,
+            "timestamp": msg.timestamp.isoformat() if hasattr(msg.timestamp, "isoformat") else str(msg.timestamp),
         })
+
+    # 序列化编年史叙事
+    for narrative in game_state.narratives:
+        save_data["game_state"]["narratives"].append(narrative)
+
+    # 序列化战斗结果
+    for battle_result in game_state.battle_results_this_round:
+        save_data["game_state"]["battle_results_this_round"].append(battle_result.model_dump())
 
     return save_data
 
 
 def _restore_game_state(save_data: dict) -> None:
+    """
+    从存档数据恢复游戏状态
+
+    反序列化存档数据，重建所有游戏对象（国家、区块、关系、记忆、武将等），
+    并替换当前引擎的游戏状态。包含版本兼容性检查和枚举值容错处理。
+
+    Args:
+        save_data: 存档数据字典
+
+    Raises:
+        HTTPException: 存档版本不兼容时返回400
+    """
     from ..models import (
         Block, Country, Relation, Memory, MemoryImpact, MemoryEmotion,
         General, GeneralTrait, CountryMemory, DiplomaticMessage,
         RegionType, GeographicTrait, BlockSpecialization, StrategicGoal,
-        Timeline, GameState,
+        Timeline, GameState, BattleResult,
     )
 
     engine = get_engine()
 
-    if save_data.get("version") != SAVE_VERSION:
+    # 版本兼容性检查
+    if not _check_version_compatible(save_data.get("version", "")):
         raise HTTPException(
             status_code=400,
             detail=f"存档版本不兼容：期望 {SAVE_VERSION}，实际 {save_data.get('version')}"
@@ -243,12 +348,15 @@ def _restore_game_state(save_data: dict) -> None:
 
     gs = save_data.get("game_state", {})
 
+    # 重建游戏状态对象
     new_state = GameState()
     new_state.round = gs.get("round", 1)
 
+    # 恢复时间线
     timeline_data = gs.get("timeline", {"year": 200, "month": 1})
     new_state.timeline = Timeline(year=timeline_data["year"], month=timeline_data["month"])
 
+    # 恢复国家数据（含枚举值容错）
     for country_name, cd in gs.get("countries", {}).items():
         goal_str = cd.get("goal", "expand")
         try:
@@ -278,6 +386,7 @@ def _restore_game_state(save_data: dict) -> None:
         )
         new_state.countries[country_name] = country
 
+    # 恢复区块数据（含枚举值容错）
     for block_name, bd in gs.get("blocks", {}).items():
         region_type_str = bd.get("region_type", "core")
         try:
@@ -318,6 +427,7 @@ def _restore_game_state(save_data: dict) -> None:
         )
         new_state.blocks[block_name] = block
 
+    # 恢复外交关系
     for rel_key, rd in gs.get("relations", {}).items():
         relation = Relation(
             country_a=rd.get("country_a", ""),
@@ -330,6 +440,7 @@ def _restore_game_state(save_data: dict) -> None:
         )
         new_state.relations[rel_key] = relation
 
+    # 恢复国家记忆（含枚举值容错）
     for mem_key, md in gs.get("country_memories", {}).items():
         memories = []
         for m in md.get("memories", []):
@@ -358,6 +469,7 @@ def _restore_game_state(save_data: dict) -> None:
         )
         new_state.country_memories[mem_key] = cm
 
+    # 恢复武将数据（含枚举值容错）
     for gd in gs.get("generals", []):
         trait_str = gd.get("trait")
         try:
@@ -375,13 +487,22 @@ def _restore_game_state(save_data: dict) -> None:
         )
         new_state.generals.append(general)
 
+    # 恢复其他数据
     new_state.defeated_nations = gs.get("defeated_nations", {})
     new_state.historical_events_triggered = gs.get("historical_events_triggered", {})
     new_state.action_log = gs.get("action_log", [])
     new_state.history = gs.get("history", [])
     new_state.last_round_actions = gs.get("last_round_actions", {})
 
+    # 恢复外交消息（含时间戳反序列化）
     for msg_data in gs.get("diplomatic_messages", []):
+        timestamp = msg_data.get("timestamp")
+        if timestamp:
+            try:
+                from datetime import datetime as _dt
+                timestamp = _dt.fromisoformat(timestamp)
+            except (ValueError, TypeError):
+                timestamp = None
         msg = DiplomaticMessage(
             id=msg_data.get("id", ""),
             from_country=msg_data.get("from_country", ""),
@@ -389,16 +510,55 @@ def _restore_game_state(save_data: dict) -> None:
             content=msg_data.get("content", ""),
             visibility=msg_data.get("visibility", "private"),
             round=msg_data.get("round", 1),
+            timestamp=timestamp,
         )
         new_state.diplomatic_messages.append(msg)
 
+    new_state.narratives = gs.get("narratives", [])
+    # 恢复战斗结果
+    new_state.battle_results_this_round = [
+        BattleResult(**br) if isinstance(br, dict) else br
+        for br in gs.get("battle_results_this_round", [])
+    ]
+
+    # 替换引擎中的游戏状态
     engine.state = new_state
 
 
 router = APIRouter(prefix="/save", tags=["save"])
 
 
+def _validate_save_id(save_id: str) -> str:
+    """
+    验证存档ID的安全性
+
+    防止路径遍历攻击，确保存档ID不包含路径分隔符或上级目录引用。
+
+    Args:
+        save_id: 存档ID字符串
+
+    Returns:
+        str: 验证通过的存档ID
+
+    Raises:
+        HTTPException: 存档ID包含非法字符时返回400
+    """
+    if "/" in save_id or "\\" in save_id or ".." in save_id:
+        raise HTTPException(status_code=400, detail="Invalid save ID")
+    return save_id
+
+
 def create_autosave_sync() -> None:
+    """
+    同步创建自动存档
+
+    由回合推进逻辑调用，创建自动存档并清理旧存档。
+    不返回结果，失败时仅记录日志。
+
+    Side Effects:
+        - 在SAVE_DIR下创建新的自动存档JSON文件
+        - 可能删除旧存档以保持总数不超限
+    """
     engine = get_engine()
     if not engine.state:
         return
@@ -419,6 +579,20 @@ def create_autosave_sync() -> None:
 
 @router.post("/manual", response_model=SaveInfo)
 async def create_manual_save(req: SaveRequest):
+    """
+    创建手动存档
+
+    支持自定义存档名称和描述。创建后自动清理旧存档。
+
+    Args:
+        req: 存档请求，包含可选的名称和描述
+
+    Returns:
+        SaveInfo: 存档信息
+
+    Raises:
+        HTTPException: 游戏未初始化(400)、创建失败(500)
+    """
     try:
         engine = get_engine()
 
@@ -456,6 +630,17 @@ async def create_manual_save(req: SaveRequest):
 
 @router.post("/autosave")
 async def create_autosave():
+    """
+    创建自动存档
+
+    通过API手动触发自动存档（区别于回合推进时的自动存档）。
+
+    Returns:
+        dict: 包含存档ID、成功标志和消息
+
+    Raises:
+        HTTPException: 游戏未初始化(400)、创建失败(500)
+    """
     try:
         engine = get_engine()
 
@@ -490,6 +675,17 @@ async def create_autosave():
 
 @router.get("/list", response_model=List[SaveInfo])
 async def list_saves():
+    """
+    获取存档列表
+
+    按时间倒序返回所有存档的信息。
+
+    Returns:
+        List[SaveInfo]: 存档信息列表
+
+    Raises:
+        HTTPException: 获取失败(500)
+    """
     try:
         saves = []
 
@@ -508,9 +704,10 @@ async def list_saves():
 
                     saves.append(save_info)
             except Exception as e:
-                print(f"Error reading save file {save_file}: {e}")
+                logger.error(f"Error reading save file {save_file}: {e}")
                 continue
 
+        # 按时间倒序排列
         saves.sort(key=lambda x: x["timestamp"], reverse=True)
 
         return saves
@@ -520,6 +717,21 @@ async def list_saves():
 
 @router.post("/load/{save_id}")
 async def load_save(save_id: str):
+    """
+    加载存档
+
+    从指定存档文件恢复游戏状态，包含版本兼容性检查。
+
+    Args:
+        save_id: 存档ID
+
+    Returns:
+        dict: 包含存档ID、回合数、成功标志和消息
+
+    Raises:
+        HTTPException: 存档不存在(404)、版本不兼容(400)、加载失败(500)
+    """
+    save_id = _validate_save_id(save_id)
     try:
         save_path = SAVE_DIR / f"{save_id}.json"
 
@@ -529,12 +741,13 @@ async def load_save(save_id: str):
         with open(save_path, "r", encoding="utf-8") as f:
             save_data = json.load(f)
 
-        if save_data.get("version") != SAVE_VERSION:
+        if not _check_version_compatible(save_data.get("version", "")):
             raise HTTPException(
                 status_code=400,
                 detail=f"存档版本不兼容：期望 {SAVE_VERSION}，实际 {save_data.get('version')}"
             )
 
+        # 恢复游戏状态（替换当前引擎状态）
         _restore_game_state(save_data)
 
         loaded_round = save_data.get("game_state", {}).get("round", 1)
@@ -553,6 +766,19 @@ async def load_save(save_id: str):
 
 @router.delete("/{save_id}")
 async def delete_save(save_id: str):
+    """
+    删除存档
+
+    Args:
+        save_id: 存档ID
+
+    Returns:
+        dict: 包含存档ID、删除标志和消息
+
+    Raises:
+        HTTPException: 存档不存在(404)、删除失败(500)
+    """
+    save_id = _validate_save_id(save_id)
     try:
         save_path = SAVE_DIR / f"{save_id}.json"
 
@@ -574,6 +800,17 @@ async def delete_save(save_id: str):
 
 @router.get("/count")
 async def get_save_count():
+    """
+    获取存档统计
+
+    分别统计手动存档和自动存档的数量。
+
+    Returns:
+        dict: 包含手动存档数、自动存档数和总数
+
+    Raises:
+        HTTPException: 获取失败(500)
+    """
     try:
         manual_count = 0
         autosave_count = 0

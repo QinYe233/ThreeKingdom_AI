@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pathlib import Path
 import json
 from .game_state_holder import get_engine
@@ -25,7 +25,7 @@ def get_blocks_summary():
     engine = get_engine()
 
     if not engine.state:
-        return {"error": "Game not initialized"}
+        raise HTTPException(status_code=400, detail="Game not initialized")
 
     state = engine.state
     features = []

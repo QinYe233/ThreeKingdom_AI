@@ -41,20 +41,38 @@ function Stop-Services {
     Write-Host "[*] Stopping services..." -ForegroundColor Yellow
     
     $stopped = $false
+
+    # Stop by port
+    try {
+        $backendProc = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
+        foreach ($pid in $backendProc) {
+            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+            $stopped = $true
+        }
+        if ($backendProc) {
+            Write-Host "  Stopped backend (port 8000)" -ForegroundColor Green
+        }
+    } catch {}
+
+    try {
+        $frontendProc = Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
+        foreach ($pid in $frontendProc) {
+            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+            $stopped = $true
+        }
+        if ($frontendProc) {
+            Write-Host "  Stopped frontend (port 5173)" -ForegroundColor Green
+        }
+    } catch {}
     
+    # Stop by process name
     Get-Process -Name "python" -ErrorAction SilentlyContinue | Where-Object {
-        $_.MainWindowTitle -like "*SanGuo*" -or $_.CommandLine -like "*uvicorn*"
+        $_.CommandLine -like "*uvicorn*"
     } | Stop-Process -Force -ErrorAction SilentlyContinue
-    
+
     Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object {
-        $_.MainWindowTitle -like "*SanGuo*" -or $_.CommandLine -like "*vite*"
+        $_.CommandLine -like "*vite*"
     } | Stop-Process -Force -ErrorAction SilentlyContinue
-    
-    $windows = Get-Process | Where-Object { $_.MainWindowTitle -like "*SanGuo*" }
-    foreach ($win in $windows) {
-        Stop-Process -Id $win.Id -Force -ErrorAction SilentlyContinue
-        $stopped = $true
-    }
     
     if ($stopped) {
         Write-Host "[OK] Services stopped" -ForegroundColor Green
@@ -203,7 +221,7 @@ function Start-Backend {
     try {
         $startInfo = New-Object System.Diagnostics.ProcessStartInfo
         $startInfo.FileName = $venvPython
-        $startInfo.Arguments = "-m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+        $startInfo.Arguments = "-m uvicorn app.main:app --host 127.0.0.1 --port 8000"
         $startInfo.WorkingDirectory = $BackendDir
         $startInfo.UseShellExecute = $true
         $startInfo.WindowStyle = "Normal"

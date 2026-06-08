@@ -1,5 +1,10 @@
+/**
+ * 视觉主题配置 - 古卷纸风格
+ * 包含颜色、字体、纹理效果、组件样式、地图颜色、势力颜色等
+ */
+
+// 主色调 - 古卷纸暖色系
 export const THEME_COLORS = {
-  // Main colors - Warm aged paper palette
   bg: "#e8dccb",                    // Warm aged paper - main background
   header: "#d4c8b5",                 // Darker parchment brown - headers
   sidebar: "#d9d0c7",                 // Slightly lighter than header - sidebars
@@ -16,6 +21,7 @@ export const THEME_COLORS = {
 
 export type ThemeColors = typeof THEME_COLORS;
 
+// 字体配置 - 书法/宋体/楷体
 export const FONTS = {
   title: "Ma Shan Zheng, SimSun, serif",    // 马善正楷 - Traditional calligraphy for titles
   subtitle: "STSong, serif",                  // 宋体 - Song dynasty style for subtitles
@@ -29,7 +35,7 @@ export const FONT_SIZES = {
   caption: "0.75rem",    // Captions
 };
 
-// Parchment texture effects using CSS
+// 古卷纸纹理效果 - CSS渐变实现
 export const PARCHMENT_EFFECTS = {
   // Main background with aged spots
   background: `
@@ -73,7 +79,7 @@ export const PARCHMENT_EFFECTS = {
   `,
 };
 
-// Component-specific styles
+// 组件级样式预设
 export const COMPONENT_STYLES = {
   // Scroll-style panel backgrounds
   scrollPanel: {
@@ -101,7 +107,7 @@ export const COMPONENT_STYLES = {
     color: "#ffffff",
     border: `1px solid rgba(139, 115, 85, 0.2)`,
     boxShadow: "inset 0 1px 2px rgba(0, 0, 0, 0.1)",
-    transition: "all 0.2s ease",
+    transition: "background-color 0.2s ease, box-shadow 0.2s ease",
   },
   buttonHover: {
     background: "#a55830", // Darker red
@@ -127,7 +133,7 @@ export const COMPONENT_STYLES = {
   },
 };
 
-// Map background colors
+// 地图底色配置
 export const MAP_COLORS = {
   base: "#f0e6d3",                    // Very light parchment - map base
   water: "#d4c8b5",                  // Muted brown - water areas
@@ -139,7 +145,7 @@ export const MAP_COLORS = {
   hoverFill: "rgba(139, 115, 85, 0.2)",  // Light parchment - hover fill
 };
 
-// Keep existing useful constants
+// 势力主色（用于标签、徽章等简单场景）
 export const COUNTRY_COLORS: Record<string, string> = {
   "魏": "#5470a6",
   "蜀": "#c44e52",
@@ -152,6 +158,7 @@ export const COUNTRY_COLORS: Record<string, string> = {
   "凉州": "#d2691e",
 };
 
+// 势力色组（用于地图绘制，包含填充/描边/首都星标三色）
 export const COUNTRY_COLOR_SETS: Record<string, { fill: string; stroke: string; star: string }> = {
   "魏": { fill: "#4a6fa5", stroke: "#3d5a80", star: "#6b8fc7" },
   "蜀": { fill: "#a54657", stroke: "#8b3a4a", star: "#d46a7a" },
@@ -164,66 +171,5 @@ export const COUNTRY_COLOR_SETS: Record<string, { fill: string; stroke: string; 
   "凉州": { fill: "#cd853f", stroke: "#a0522d", star: "#eda55f" },
 };
 
-export const OWNER_NAMES: Record<string, string> = {
-  neutral: "中立",
-  "魏": "魏",
-  "蜀": "蜀",
-  "吴": "吴",
-  "公孙度": "公孙度",
-  "士燮": "士燮",
-  "南中": "南中",
-  "山越": "山越",
-  "凉州": "凉州",
-};
-
-export const COUNTRY_ORDER = ["魏", "蜀", "吴"];
-
-export const ANIMATION_DURATION = 2500;
-
-export const SPECIALIZATION_LABELS: Record<string, string> = {
-  farming: "农垦",
-  trade: "商贸",
-  fortress: "堡垒",
-};
-
-export const GOAL_LABELS: Record<string, string> = {
-  expand: "扩张",
-  defend: "防御",
-  revenge: "复仇",
-  stabilize: "稳定",
-  declare_emperor: "称帝",
-};
-
-export const AI_ROLES = [
-  { id: "wei", name: "魏国", countryKey: "魏", desc: "控制曹操势力，以统一天下为目标" },
-  { id: "shu", name: "蜀国", countryKey: "蜀", desc: "控制刘备势力，以兴复汉室为目标" },
-  { id: "wu", name: "吴国", countryKey: "吴", desc: "控制孙权势力，以保境安民为目标" },
-  { id: "chronicler", name: "史官", countryKey: "", desc: "记录游戏历史，撰写叙事文本" },
-];
-
-export const SPEED_OPTIONS = [
-  { value: 5000, label: "慢速" },
-  { value: 3000, label: "正常" },
-  { value: 1500, label: "快速" },
-  { value: 800, label: "极速" },
-];
-
-export const getRelationStatus = (rel: { at_war: boolean; is_allied: boolean; trust: number; grudge: number }) => {
-  if (rel.at_war) return { text: "⚔️ 交战", color: "#ef4444" };
-  if (rel.is_allied) return { text: "🤝 同盟", color: "#34d399" };
-  if (rel.trust > 0.5) return { text: "😊 友善", color: "#60a5fa" };
-  if (rel.grudge > 0.3) return { text: "😤 仇怨", color: "#f97316" };
-  return { text: "😐 中立", color: "#9ca3af" };
-};
-
-export const getActionPointColor = (ap: number) => {
-  if (ap > 3) return { bg: "rgba(26, 111, 19, 0.2)", text: "#1a6f4a" };
-  if (ap > 0) return { bg: "rgba(217, 145, 53, 0.2)", text: "#d97706" };
-  return { bg: "rgba(197, 48, 48, 0.2)", text: "#c53030" };
-};
-
-export const getOrderMoraleColor = (value: number) => {
-  if (value >= 60) return "#1a6f4a";
-  if (value >= 30) return "#d97706";
-  return "#c53030";
-};
+// 从 constants.ts 重新导出，保持向后兼容
+export { COUNTRY_ORDER, AI_ROLES, SPECIALIZATION_LABELS, GOAL_LABELS, ANIMATION_DURATION, SPEED_OPTIONS, OWNER_NAMES, getRelationStatus, getActionPointColor, getOrderMoraleColor } from "./constants";

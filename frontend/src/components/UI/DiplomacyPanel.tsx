@@ -2,6 +2,7 @@ import { memo, useRef, useEffect } from "react";
 import type { ThemeColors } from "../../theme";
 import { COUNTRY_COLORS, getRelationStatus } from "../../theme";
 import type { DiplomaticEvent } from "../../types/game";
+import { usePanelAnimation } from "../../hooks/usePanelAnimation";
 
 interface DiplomacyPanelProps {
   show: boolean;
@@ -19,6 +20,7 @@ const DiplomacyPanel = memo(function DiplomacyPanel({
   theme
 }: DiplomacyPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { panelRef, visible } = usePanelAnimation(show, "up", window.innerHeight * 0.35, 0.3);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -26,13 +28,13 @@ const DiplomacyPanel = memo(function DiplomacyPanel({
     }
   }, [diplomaticEvents]);
 
-  if (!show) return null;
+  if (!visible) return null;
 
   return (
     <div
-      className="absolute bottom-0 left-0 right-0 z-30 transition-transform duration-300"
+      ref={panelRef}
+      className="absolute bottom-0 left-0 right-0 z-30"
       style={{
-        transform: show ? 'translateY(0)' : 'translateY(100%)',
         height: '35vh',
         backgroundColor: theme.sidebar,
         borderTop: `2px solid ${theme.accent}`,

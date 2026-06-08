@@ -1,17 +1,66 @@
+"""
+AI配置模块
+
+定义AI模型的数据模型和各角色的系统提示词。
+每个AI角色（魏、蜀、吴、史官）拥有独立的系统提示词，塑造不同的决策风格和叙事口吻。
+
+主要组件：
+- AIModelConfig: AI模型配置数据模型
+- AI_ROLES: AI角色列表
+- ROLE_NAMES: 角色中文名映射
+- ROLE_DESCRIPTIONS: 角色职责描述
+- SYSTEM_PROMPTS: 各角色的系统提示词模板
+"""
 from pydantic import BaseModel
 
 
 class AIModelConfig(BaseModel):
+    """AI模型配置数据模型，定义与OpenAI兼容API交互所需的全部参数。
+
+    Attributes:
+        model: 模型名称，如"gpt-4"、"deepseek-chat"等
+        api_key: API密钥，用于身份验证
+        base_url: API基础URL，支持OpenAI兼容的第三方服务
+        temperature: 生成温度，控制输出随机性（0-1，越高越随机）
+        max_tokens: 最大生成token数，控制输出长度
+        streaming: 是否启用流式输出模式
+        deep_thinking: 是否启用深度思考模式（支持reasoning_content的模型）
+    """
     model: str = ""
     api_key: str = ""
     base_url: str = ""
     temperature: float = 0.7
     max_tokens: int = 4096
+    streaming: bool = True
+    deep_thinking: bool = True
 
     def is_valid(self) -> bool:
+        """检查配置是否有效。
+
+        有效的配置必须同时提供model、api_key和base_url三个字段。
+
+        Returns:
+            True表示配置有效，False表示缺少必要字段
+        """
         return bool(self.model and self.api_key and self.base_url)
 
     def get_effective_max_tokens(self, prompt_type: str = "") -> int:
+        """获取实际生效的最大token数。
+
+        当max_tokens大于800时，直接使用用户设定值（视为显式配置）。
+        当max_tokens不大于800时，根据prompt_type使用默认值：
+        - 史官类(chronicler): 1024（叙事文本较短）
+        - 国家决策类: 4096（决策分析需要更长输出）
+
+        这种设计允许用户通过设置较大的max_tokens来覆盖默认值，
+        同时为未显式配置的情况提供合理的默认值。
+
+        Args:
+            prompt_type: 提示词类型，用于选择默认max_tokens
+
+        Returns:
+            实际生效的最大token数
+        """
         if self.max_tokens > 800:
             return self.max_tokens
         if "chronicler" in prompt_type:
@@ -19,8 +68,10 @@ class AIModelConfig(BaseModel):
         return 4096
 
 
+# AI角色列表，定义系统中所有可配置的AI角色
 AI_ROLES = ["wei", "shu", "wu", "chronicler"]
 
+# 角色中文名映射，用于前端展示
 ROLE_NAMES = {
     "wei": "魏国",
     "shu": "蜀国",
@@ -28,6 +79,7 @@ ROLE_NAMES = {
     "chronicler": "史官",
 }
 
+# 角色职责描述，说明每个AI角色的核心目标
 ROLE_DESCRIPTIONS = {
     "wei": "控制曹操势力，以统一天下为目标",
     "shu": "控制刘备势力，以兴复汉室为目标",
@@ -35,10 +87,17 @@ ROLE_DESCRIPTIONS = {
     "chronicler": "记录游戏历史，撰写叙事文本",
 }
 
+# 各角色的系统提示词模板
+# 每个模板包含{context}占位符，运行时注入当前局势信息
+# 提示词末尾定义了行动格式，AI必须按此格式输出才能被正则解析
 SYSTEM_PROMPTS = {
     "country_wei": """你是魏王曹操。你雄才大略，挟天子以令诸侯，坐拥中原沃土，兵多将广。但四面受敌，需以攻代守，先发制人。
 
 你的性格：务实果断，深谋远虑，不拘小节，唯才是举。你信奉"宁教我负天下人"，但也知人善任、赏罚分明。
+
+【重要情报】
+- 中立势力（如公孙度、士燮、南中、山越、凉州等）不会主动进攻，但会防守领地
+- 这些势力兵力有限，可作为扩张目标，攻占后可获得额外奖励
 
 当前局势：
 {context}
@@ -46,7 +105,7 @@ SYSTEM_PROMPTS = {
 请以曹操的口吻，先审视天下大势，再做出本回合的决断。你需要像真正的君主一样，兼顾内政与军事：
 - 治国先治本：发展领地、充实国库、训练兵马，这些是根基
 - 用兵如用火：进攻要选准时机和方向，不可穷兵黩武
-- 运筹帷幄：调兵布防、骚扰敌后、外交纵横，都是手段
+- 运筹帷幄：调兵布防、骚扰敌后，都是手段
 
 在决策末尾，用以下格式列出你要执行的行动（每行一个）：
 进攻：从「出发区块」出击至「目标区块」，出兵N
@@ -59,6 +118,10 @@ SYSTEM_PROMPTS = {
     "country_shu": """你是汉中王刘备。你仁德布于四海，以兴复汉室为己任。虽偏居益州，但据险而守，卧龙凤雏辅佐左右，待时而动。
 
 你的性格：仁义宽厚，知人善任，百折不挠。你深信得民心者得天下，善待百姓、爱惜将士是你的立身之本。
+
+【重要情报】
+- 中立势力（如公孙度、士燮、南中、山越、凉州等）不会主动进攻，但会防守领地
+- 这些势力兵力有限，可作为扩张目标，攻占后可获得额外奖励
 
 当前局势：
 {context}
@@ -79,6 +142,10 @@ SYSTEM_PROMPTS = {
     "country_wu": """你是吴侯孙权。你承父兄之业，据守江东六郡，长江天险为屏，水军冠绝天下。你善于制衡，在魏蜀之间纵横捭阖。
 
 你的性格：沉稳睿智，知人善任，能屈能伸。你深谙"存亡之机，在于识变"，善用外交与军事双管齐下。
+
+【重要情报】
+- 中立势力（如公孙度、士燮、南中、山越、凉州等）不会主动进攻，但会防守领地
+- 这些势力兵力有限，可作为扩张目标，攻占后可获得额外奖励
 
 当前局势：
 {context}
